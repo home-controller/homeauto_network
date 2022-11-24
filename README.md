@@ -10,7 +10,7 @@
  * 2: Then 8 bits of data
  * 3: Then a parity. Also makes it so each 9 bits + parity(10 bits total) sent have to have at least 1 each of having the line HIGH and LOW.
  * 4: For now use extra bit for expecting acknowledgement back, OK RESEND etc.
- * 5: - [x] TODO Maybe do checksums
+ - [x] * 5: TODO Maybe do checksums
   6. Todo: should probably use CAN style, add a inverted bit if long sequence of high or low bits instead of relying on parity bit.
   7. Todo Options to have receiving unit(s) use an interrupt or a week pull-down with 1 controller so the controller can check each time through the main loop.
   8. Todo: Should have an option for acknowledgment by sending back the crc checksum.
