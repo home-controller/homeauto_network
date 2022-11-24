@@ -1,5 +1,5 @@
 # Homeauto Network.
-### This code was copied from the Ethernet relay controller so there might still be some comments etc. referring to that that need to be rewritten or removed. I separated this code as it is needed for more of my Homeauto projects that the Ethernet Relay one.
+### This code was copied from the Ethernet relay controller so there might still be some comments etc. referring to that that need to be rewritten or removed. I separated this code as it is needed for more of my Homeauto projects than the Ethernet Relay one.
 
 ## hn is short fot Home Network here. 
  * Not to be confused with Ethernet.
@@ -11,7 +11,7 @@
  * 3: Then a parity. Also makes it so each 9 bits + parity(10 bits total) sent have to have at least 1 each of having the line HIGH and LOW.
  * 4: For now use extra bit for expecting acknowledgement back, OK RESEND etc.
  - [x] * 5: TODO Maybe do checksums
-  6. Todo: should probably use CAN style, add a inverted bit if long sequence of high or low bits instead of relying on parity bit.
-  7. Todo Options to have receiving unit(s) use an interrupt or a week pull-down with 1 controller so the controller can check each time through the main loop.
-  8. Todo: Should have an option for acknowledgment by sending back the crc checksum.
-  9. TODO: interrupt version away to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
+ - [ ]  6. Todo: should probably use CAN style, add a inverted bit if long sequence of high or low bits instead of relying on parity bit.
+  - [ ]   7. Todo Options to have receiving unit(s) use an interrupt or a week pull-down with 1 controller so the controller can check each time  -  - [ ]  through the main loop.
+  - [ ]   8. Todo: Should have an option for acknowledgment by sending back the crc checksum.
+  - [ ]   9. TODO: interrupt version away to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
