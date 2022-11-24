@@ -14,13 +14,24 @@
  * This will work like a very cutdown CAN bus with no need for the extra modules. Hopefully. :)
  * very loosely
  */
-SlowHomeNet::SlowHomeNet(){
+SlowHomeNet::SlowHomeNet(uint8_t l, uint8_t pinNo){
   pinMode( _hn_int_pin,  INPUT_PULLUP );// should add some external resistor to make stronger pullup. be safer to use 2 pins and pull down through
                                         // a transistor, easy to replace if you shore the line high.
                                         // Would one of the solid state fuses be fast enough to save the pin?
+ attachIntToPin(pinNo);
+}
+
+void SlowHomeNet::attachIntToPin(byte pin){
+  PCMSK2 = pinD_intMsk;
+  PCICR |= pinIntEn;
+  ISR(PCINT2_vect) &IntCallback;
+  
 }
 
 void SlowHomeNet::IntCallback(){// expects 11 bit: 8 data 1 ack, 1 parity & 1 low bit at start.
+  if(lock){return;}
+  lock = true;
+  interrupts ();  // allow more interrupts, not sure about this.
   unsigned long t;
   word mod_t;
   byte state = _pinReg & _pinMask; //LOW = 0 but HIGH value will = the mask not 1.
@@ -29,9 +40,10 @@ void SlowHomeNet::IntCallback(){// expects 11 bit: 8 data 1 ack, 1 parity & 1 lo
   // 2: if was high then start counting.
   
   CurrentTime = micros ();// not sure if should try and use the registers strait?
+  // Maybe should only  
   t = CurrentTime - lastTime;
-  // If time since last called less then 1/2 pulse time egnore call
-  if(t < (bitPulseLength >> 1) ){ return; }
+  // If time since last called less then 1/2 pulse time ignore call
+  if(t < (bitPulseLength >> 1) ){ lock = false; return; }
   t = CurrentTime - lastTime;
   lastTime = CurrentTime;
   mod_t = t & 0x7ff; //= 11 bit mask (0x7ff = 2048 - 1 = 2^11 - 1 = 0b11111111111)
@@ -50,10 +62,10 @@ void SlowHomeNet::IntCallback(){// expects 11 bit: 8 data 1 ack, 1 parity & 1 lo
     dataIn = dataIn << t;
     if(lastState == 0){// if line high add the t high bits (1s).  // if state is low last state should be high.
       //parity is only about odd or even number of high bits so only changes on high pulses.
-      dFlags = (t + (dFlags & B1)) & B1;// parity = last bit of parity + t i.e. = (parity + t) bitand b00000001. hence count of all hight bits inclouding the parity will alwasy be even i.e. last bit = 0
-      dataIn |= (1 << t) - 1;// e.g. t=3 becomes (1 << 3) sub 1 = B1000 sub 1 = B111. Also |= should be equivilent to += here.
+      dFlags = (t + (dFlags & B1)) & B1;// parity = last bit of parity + t i.e. = (parity + t) bitand b00000001. hence count of all hight bits including the parity will always be even i.e. last bit = 0
+      dataIn |= (1 << t) - 1;// e.g. t=3 becomes (1 << 3) sub 1 = B1000 sub 1 = B111. Also |= should be equivelent to += here.
     } // else leave as already set to 0s with the shift left.
-    //if(bitPos > 11){should never get here as would mean the interupt was delaied by a pulse length. (I hope :P)}
+    //if(bitPos > 11){should never get here as would mean the interrupt was delayed by a pulse length. (I hope :P)}
     if(bitPos >= 11){// Should never be greater than 11.
       if( (dFlags & B1) == 0){
         
@@ -68,4 +80,5 @@ void SlowHomeNet::IntCallback(){// expects 11 bit: 8 data 1 ack, 1 parity & 1 lo
     
   }
   lastState = state;
+  lock = false;
 }
