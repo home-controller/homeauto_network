@@ -4,8 +4,7 @@
 			"path": "."
 		},
 		{
-			"name": "220809-080850-nanoatmega328new",
-			"path": "../../../../Documents/PlatformIO/Projects/220809-080850-nanoatmega328new"
+			"path": "../libraries"
 		}
 	],
 	"settings": {}
