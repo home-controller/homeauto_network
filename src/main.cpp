@@ -12,38 +12,63 @@
  * Output for relays on pins 3, 4 See relays.h tab
  */
 
-#include <avr/wdt.h>
-#include <Arduino.h>
-
 #include <defs.h>
-#include <I.h>
+#include <gpioSwitchInput.h>
+#include <hn.h>
 
-void setup()
-{
-  // byte id, i;
-  Serial.begin(38400);
-  while (!Serial)
-  {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
-  Serial.println();
-  Serial.println(F("Serial connected"));
-  Serial.print(F("Board type: ")); Serial.println(F(board_name));
+#include "/home/jmnc2/.platformio/packages/toolchain-atmelavr/avr/include/avr/wdt.h"
 
-  wdt_enable(WDTO_8S);
-  
-  Serial.println(F("No internal pullup mode for A6 & A7"));
-  Serial.print(F("A0 = "));
-  Serial.print(A0);
-  Serial.print(F(", A7 = "));
-  Serial.println(A7); // Serial.print( F("D1 = "));Serial.print(D1);
-                      // SetUpInputs();// Wall switches
-  Serial.print(F("main.cpp: End of Setup(). Line No.: "));
-  Serial.println(__LINE__);
+#define serial_speed 38400
+
+#define pinIO_no_of_switches 6               // setup the number of gpio's used
+#define pinIO_inPins A7, A6, A0, A1, A2, A3  // in sa main.h
+
+// byte pinIO_Max_switches = pinIO_no_of_switches;
+byte pinIO_switchState[pinIO_no_of_switches];
+byte pinIO_pinsA_in[pinIO_no_of_switches] = {pinIO_inPins};
+
+void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  // Callback when a switch changes
+    Serial.print(F("ioType:"));
+    Serial.print(ioType);
+    Serial.print(F(", i:"));
+    Serial.print(i);
+    Serial.print(F(", count:"));
+    Serial.print(count);
+    Serial.print(F(", state:"));
+    Serial.println(state);
 }
 
-void loop()
-{
-  wdt_reset();
-  SwitchesExe(); // Func is debounced
+gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_in);
+
+SlowHomeNet hNet();
+
+void setup() {
+    // byte id, i;
+    Serial.begin(serial_speed);
+    while (!Serial) {
+        ;  // wait for serial port to connect. Needed for native USB port only
+        delay(100);
+    }
+    Serial.println();
+    Serial.println(F("Serial connected"));
+    Serial.print(F("Board type: "));
+    Serial.println(F(board_name));
+
+    wdt_enable(WDTO_8S);
+
+    Serial.println(F("No internal pullup mode for A6 & A7"));
+    Serial.print(F("A0 = "));
+    Serial.print(A0);
+    Serial.print(F(", A7 = "));
+    Serial.println(A7);  // Serial.print( F("D1 = "));Serial.print(D1);
+                         // SetUpInputs();// Wall switches
+    Serial.print(F("main.cpp: End of Setup(). Line No.: "));
+    Serial.println(__LINE__);
+    
+    gpioIn.SetCallback(&gotInputPin);
+}
+
+void loop() {
+    wdt_reset();
+    gpioIn.SwitchesExe();  // Func is debounced
 }
