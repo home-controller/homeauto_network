@@ -21,17 +21,25 @@
 class SlowHomeNet {
    public:
     void attachIntToPin(byte pin);
-    SlowHomeNet();  // class setup procedure, auto called
-    exc();// Need to call each time though the main loop.
-    send(byte command,byte date);
+    SlowHomeNet(byte pin);  // class setup procedure, auto called
+    void exc();             // Need to call each time though the main loop.
+    byte send(byte command, byte date);
+
    private:
-#define _pinReg PIND          // read PIND for pins D0 to D7 states
-#define _pinMask 0b00000100;  // Mask for third pin in reg. i.e. on PIND mask for D2
+   //wouldn't bother with storing this in SRAM but for to keep the ISR faster.
+    uint8_t pin_bit_msk;        // = digitalPinToBitMask(pin);
+    uint8_t pin_port;           // = digitalPinToPort(pin);
+    //for the MEGA the type may need to be changed to uint16_t
+    volatile uint8_t *pin_DDR_reg;  // = portModeRegister(port);
+    volatile uint8_t *port_IO_reg;      // volatile uint8_t *out = portOutputRegister(port);
+#define _pinReg PIND            // read PIND for pins D0 to D7 states
+#define _pinMask 0b00000100;    // Mask for third pin in reg. i.e. on PIND mask for D2
 #define _hn_int_pin 2
+    byte networkPin;
     word lineSpeed = 488;                   // bits per second. And 1e6/488 ≈ 2049 so approx 2048 µs (microsecond = 1 millionth of a second)
                                             // Changed from 600 to 488 as this allows shifting right 11 to divide by 2048.
                                             // so number or bits can be given by t >> 11 and the remaining time by t bitand (2048 - 1)
-    word bitPulseLength = 1e6 / lineSpeed;  // in microseconds 1,666.66...  488 ~= 1e6/2048
+    word bitPulseLength = 1e6 / lineSpeed;  // in microseconds 1,666.66...  488 ~= 1e6/2048 = 488 + 9 ∕ 32
                                             // 1e6 is the number of microseconds in a second
     /*
      * Max in use high is 9. 9 High data bits, Then parity would be low. Add 1/2 pulse for timing errors.
@@ -43,8 +51,9 @@ class SlowHomeNet {
      * before we have CAN style it is to painfully without a stop bit. Adding one pulse after the parity the opposite of it so we always get
      * our date without having to check, also makes error checking easier.
      */
-    word maxInuseHigh = (9 * bitPulseLength) + (bitPulseLength >> 2);  //  Only true when sending only 1 byte of data at a time.
+    word maxInuseHigh = (9 * bitPulseLength) + (bitPulseLength >> 2);  // Only true when sending only 1 byte of data. 9 x 488 + 488 >> 2 = 4514
     word maxInuseLow = maxInuseHigh + bitPulseLength;                  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
+    word WaitForLineTimeout = 400;                                     // 4/10th of a second in millisecond (1e-3). different from above that are in microseconds (1e-6)
 
     unsigned long lastTime;  // In micros. 1/million of a second
     volatile unsigned long CurrentTime;
@@ -64,15 +73,24 @@ class SlowHomeNet {
      * Maybe make the commands and data the same size as standard CAN, Would also mean you could just change to CAN
      * network with not much more than a libary change to the code.
      */
+#define DigitalWriteTime 4  // forums says 4.5µs but I think than includes the for loop
+#define DigitalReadTime 5   // forums says 4.78µs but I think than includes the for loop
+
 #define bufLength 16
 #define bufIndexBits 4  // 2^4 gives the 16 for bufLength
 #define bufMsk B1111
+
     byte buff[bufLength];  // 2^x so can use shift for math.
     byte headP = 0;
     byte lengthB = 0;
 
     byte parityErrorCount = 0;  // If parity fail int this and discard. Not put in buffer.
+    boolean monitorLinePinForChange(byte pulses, byte level);
+    byte sendBits(byte bits, byte numberOfBits);
+    boolean checkPinInput();
 
+    boolean getNetwork();
+    byte Crc4(uint8_t *addr,uint8_t len);
     void IntCallback();  // Store 3 line change timings and discared any short enough to be bounce or a line spike. Although would this be a thing?
 };
 

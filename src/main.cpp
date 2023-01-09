@@ -41,6 +41,8 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
 gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_in);
 
 SlowHomeNet hNet();
+unsigned long loopTimer;
+word loopCount;
 
 void setup() {
     // byte id, i;
@@ -66,9 +68,18 @@ void setup() {
     Serial.println(__LINE__);
     
     gpioIn.SetCallback(&gotInputPin);
+    loopCount =0;
+    loopTimer = micros();
 }
 
 void loop() {
     wdt_reset();
     gpioIn.SwitchesExe();  // Func is debounced
+    loopCount++;
+    if(loopCount>=1000){
+      loopCount=0;
+      Serial.print(F("time for 1000 loops through the main loop")); Serial.println(micros() - loopTimer );
+    }
 }
+
+
