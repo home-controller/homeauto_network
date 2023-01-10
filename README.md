@@ -1,6 +1,12 @@
 # Homeauto Network
 
-## This code was copied from the Ethernet relay controller so there might still be some comments etc. referring to that that need to be rewritten or removed. I separated this code as it is needed for more of my Homeauto projects than the Ethernet Relay one
+## Still in Afa, unfinished code
+
+This is a slow send/receive network(no master/slave) with collision detection and handling. A bit like CAN but way slower and cut-down and no need for extra hardware.
+
+Collision detection works like 1-wire and CAN with the smallest number having priority and not even knowing there was a collision, the other unit will switch to reading mode and read the message. It can then try to send the message at a later time. For now any unit can Ack a message it can deal with. But maybe this should be changed to Ack if crc is checked and then send another message if the command it dealt with.
+
+The idea is for a wired basic and slow network so you do not have to worry to much about end reflection and having different HIGH and LOW states at different points on the line/wire. Being slow should also help with any timing problems and be more tolerant of other stuff like web pages or mqtt hogging the processor and/or interrupts
 
 ## hn is short fot Home Network here
 
@@ -20,6 +26,8 @@
 8. bits[1] Ack bit
 9. bits[1] Ack delimiter bit
 10. bits[7] : 10: 7 bit end of fame.
+
+|s||||||||||||||||||||||||
 
 [ ] : todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
 
@@ -46,7 +54,7 @@
 ## can protocol web pages
 
 * <https://www.kvaser.com/can-protocol-tutorial/>
-*
+* <https://copperhilltech.com/blog/controller-area-network-can-bus-tutorial-message-frame-format/>
 
 <details>
   <summary>Maximum Cable Length</summary>

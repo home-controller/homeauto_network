@@ -89,8 +89,11 @@ class SlowHomeNet {
     byte sendBits(byte bits, byte numberOfBits);
     boolean checkPinInput();
 
+    byte getPulseNo(byte pulses, byte level);
+    byte receiveMonitor();
+
     boolean getNetwork();
-    byte Crc4(uint8_t *addr,uint8_t len);
+    byte Crc4(uint8_t *addr, uint8_t len);
     void IntCallback();  // Store 3 line change timings and discared any short enough to be bounce or a line spike. Although would this be a thing?
 };
 

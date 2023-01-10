@@ -43,7 +43,7 @@ SlowHomeNet::SlowHomeNet(byte pin) {
 byte SlowHomeNet::sendBits(byte bits, byte numberOfBits) {
     byte x, y;
     for (x = numberOfBits; x > 0; x--) {
-        if (((bits >> (x-1)) bitand 0b1) == 1) {
+        if (((bits >> (x - 1)) bitand 0b1) == 1) {
             pinMode(networkPin, INPUT_PULLUP);
             delayMicroseconds((bitPulseLength - DigitalWriteTime) >> 2);
             for (y = 1; y <= 3; y++) {
@@ -117,7 +117,6 @@ byte SlowHomeNet::send(byte command, byte data) {
             }
         } else {
             // read rest of higher priority message other unit is sending.
-
         }
     } else {
         // can't acquire network.
@@ -136,7 +135,7 @@ byte SlowHomeNet::send(byte command, byte data) {
 boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
     byte x, c;
     if (level > 1) level = digitalRead(networkPin);
-    for (x = 1; x <= 4 * pulses; x++) {
+    for (x = 1; x <= 8 * pulses; x++) {
         if (digitalRead(networkPin) != level) {  // if line level changed for to checks in a row return true. This is to allow for nosy line spikes.
                                                  // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
             if (c > 0) return true;
@@ -144,8 +143,8 @@ boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
         } else {
             if (c > 0) c--;
         }
-        delayMicroseconds((bitPulseLength >> 2) - DigitalReadTime);  // Shift left 2 is same as divide by 4.(each shift left divides by 2)
-        // We should really work out how many clock cycles are used in the loop and sub that from the delay to be accurate.
+        delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);  // Shift left 3 is same as divide by 8.(each shift left divides by 2)
+        // We should really work out how many clock cycles are used in the loop [DigitalReadTime] and sub that from the delay to be accurate.
         // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
     }
     return false;
@@ -166,10 +165,70 @@ boolean SlowHomeNet::getNetwork() {
         if (monitorLinePinForChange(maxInuseHigh + 1, 1) == false) {
             digitalWrite(networkPin, LOW);
             delayMicroseconds((bitPulseLength >> 2) - DigitalWriteTime);
+            pinMode(networkPin, INPUT_PULLUP);
             return true;
         }
     } while ((millis() - timeOutStart) < WaitForLineTimeout);
     return false;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++ Reed/receive/ watch line/pin +++++++++++++++++++++++++++++++++
+
+/**
+ * @brief get the number of bits of the same level on the line upto the max of 'pulses'
+ * 
+ * @param pulses The max number of bits of the same level to wait for, Max of 0xFE.(but maybe should be 8 of something)
+ * @param level The level of bits to check for, 3
+ * @return byte, The number of bits of at least 1/2 a pulse length or 0xFF for timeout.
+ */
+byte SlowHomeNet::getPulseNo(byte pulses, byte level) {
+    byte x, c;
+    c = 0;
+    if (level > 1) level = digitalRead(networkPin);
+    for (x = 1; x <= (8 * pulses)+4; x++) {//+4 is for in-case the timing is out by upto 1/2 a pulse
+        if (digitalRead(networkPin) != level) {  // if line level changed for two checks in a row return true. This is to allow for nosy line spikes.
+                                                 // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
+            if (c > 0) {
+                c = x bitand 0b111;                     // c = remainder of x div 8
+                if (c > ((bitPulseLength >> 1) + 2)) {  // if remainder > (bitPulseLength / 2).
+                                                        // The +2 is for the extra wait for line spike check and maybe the same for the last call
+                                                        // and shouldn't hurt as a pulse should be more than 1/2 length anyway. Although not sure about the need to check at all.
+                    c = x >> 3 + 1;                     // c= x div 8 + 1
+                } else {
+                    c = x >> 3;  // c = x div 8
+                }
+                return c;
+            }
+            c++;
+        } else {
+            if (c > 0) c--;
+        }
+        delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);
+        // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
+        // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
+        // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
+    }
+    return 0xff;// timeout, the line is staying at the same line level for longer/(more bits) than 'pulses'
+}
+
+/**
+ * @brief Monitor the line for input.
+ *
+ * @details As this stays here until a message is received only good for testing or if there are no other inputs from switches etc.
+ * Although I guess there could be stuff on interrupts.
+ *
+ * @return byte Returns 0 for success, Message is stored in the buffer.
+ */
+byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
+    byte line, c;
+    do {
+        line = getPulseNo(1, HIGH);
+        if (line == 1) {
+            c++;
+        } else {
+            c = 0;
+        }
+    } while ((line == 0) or (c <= 2));
 }
 
 void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
@@ -235,6 +294,9 @@ void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
     }
     lastState = state;
 }
+
+//---------------------------------------------------- Write ----------------------------------
+
 /**
  * @brief taken strait from https://github.com/PaulStoffregen/OneWire/blob/master/OneWire.cpp
  * Can be bothered to change it but think I will xor the high and low nibbles together and just send 4 bits of CRC.
