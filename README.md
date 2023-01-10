@@ -22,14 +22,18 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 4. bits[2] data length in bytes 0=0,1=1,2=2,3=4
 5. bits[0,8,16,32] bits Then optional 8,16 or 32 bits of data.
 6. bits[?] CRC field. CAN is 15 bits but should be lot less here.
-7. bits[1]: CRC delimiter
+7. bits[1]: CRC delimiter. Delimiter is high.
 8. bits[1] Ack bit
 9. bits[1] Ack delimiter bit
 10. bits[7] : 10: 7 bit end of fame.
 
-|s||||||||||||||||||||||||
+```fixed width text
+|S|mmmmmmmm|R|ccc|dddddddddddddddd|CCCC|D|A|D|eeeeeee|
+|1| 8bits  |?| 3 |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits
+|0|????????|?|???|????????????????|????|1|?|1|1111111| the bits value
+```
 
-[ ] : todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
+[ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
 
 * Using 488 bit/s for the bandwidth. The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 
