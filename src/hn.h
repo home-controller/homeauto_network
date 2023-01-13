@@ -17,6 +17,8 @@
 
 #include <Arduino.h>
 
+#include "circular_bufC.h"
+
 #define MaxInUseHigh
 class SlowHomeNet {
    public:
@@ -24,16 +26,17 @@ class SlowHomeNet {
     SlowHomeNet(byte pin);  // class setup procedure, auto called
     void exc();             // Need to call each time though the main loop.
     byte send(byte command, byte date);
+    byte receiveMonitor();
 
    private:
-   //wouldn't bother with storing this in SRAM but for to keep the ISR faster.
-    uint8_t pin_bit_msk;        // = digitalPinToBitMask(pin);
-    uint8_t pin_port;           // = digitalPinToPort(pin);
-    //for the MEGA the type may need to be changed to uint16_t
+    // wouldn't bother with storing this in SRAM but for to keep the ISR faster.
+    uint8_t pin_bit_msk;  // = digitalPinToBitMask(pin);
+    uint8_t pin_port;     // = digitalPinToPort(pin);
+    // for the MEGA the type may need to be changed to uint16_t
     volatile uint8_t *pin_DDR_reg;  // = portModeRegister(port);
-    volatile uint8_t *port_IO_reg;      // volatile uint8_t *out = portOutputRegister(port);
-#define _pinReg PIND            // read PIND for pins D0 to D7 states
-#define _pinMask 0b00000100;    // Mask for third pin in reg. i.e. on PIND mask for D2
+    volatile uint8_t *port_IO_reg;  // volatile uint8_t *out = portOutputRegister(port);
+#define _pinReg PIND                // read PIND for pins D0 to D7 states
+#define _pinMask 0b00000100;        // Mask for third pin in reg. i.e. on PIND mask for D2
 #define _hn_int_pin 2
     byte networkPin;
     word lineSpeed = 488;                   // bits per second. And 1e6/488 ≈ 2049 so approx 2048 µs (microsecond = 1 millionth of a second)
@@ -73,27 +76,25 @@ class SlowHomeNet {
      * Maybe make the commands and data the same size as standard CAN, Would also mean you could just change to CAN
      * network with not much more than a libary change to the code.
      */
+
 #define DigitalWriteTime 4  // forums says 4.5µs but I think than includes the for loop
 #define DigitalReadTime 5   // forums says 4.78µs but I think than includes the for loop
 
-#define bufLength 16
-#define bufIndexBits 4  // 2^4 gives the 16 for bufLength
-#define bufMsk B1111
-
-    byte buff[bufLength];  // 2^x so can use shift for math.
-    byte headP = 0;
-    byte lengthB = 0;
-
     byte parityErrorCount = 0;  // If parity fail int this and discard. Not put in buffer.
+
+    circular_bufC buf;
+
     boolean monitorLinePinForChange(byte pulses, byte level);
     byte sendBits(byte bits, byte numberOfBits);
     boolean checkPinInput();
+    byte readBits(byte bits);
 
     byte getPulseNo(byte pulses, byte level);
-    byte receiveMonitor();
+ 
 
     boolean getNetwork();
     byte Crc4(uint8_t *addr, uint8_t len);
+    byte Crc4buf(uint8_t i);
     void IntCallback();  // Store 3 line change timings and discared any short enough to be bounce or a line spike. Although would this be a thing?
 };
 

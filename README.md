@@ -17,11 +17,14 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 
 1. bits[1 Maybe more] A pull down pulse to say I am about to start sending.
 
-2. bits[8] command id
-3. bit3[1] RTR (Remote Transmission Request). RTR = 0: for date frame 4. or RTR=1 for: "Remote-Request Frame"
+2. bits[8] command id. Maybe this should be moved dow 2 rows?
+3. bit3[1] RTR (Remote Transmission Request).
+RTR = 0: for date frame 4. or RTR=1 for: "Remote-Request Frame".
+should we add a bit to set when we are sending the message back to say we handled it here.
+
 4. bits[2] data length in bytes 0=0,1=1,2=2,3=4
 5. bits[0,8,16,32] bits Then optional 8,16 or 32 bits of data.
-6. bits[?] CRC field. CAN is 15 bits but should be lot less here.
+6. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
 7. bits[1]: CRC delimiter. Delimiter is high.
 8. bits[1] Ack bit
 9. bits[1] Ack delimiter bit
@@ -31,6 +34,7 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 |S|mmmmmmmm|R|ccc|dddddddddddddddd|CCCC|D|A|D|eeeeeee|
 |1| 8bits  |?| 3 |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits
 |0|????????|?|???|????????????????|????|1|?|1|1111111| the bits value
+max 42 bits high?
 ```
 
 [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
@@ -67,10 +71,10 @@ At a speed of 1 Mbit/s, a maximum cable length of about 40 meters (130 ft.) can 
 
 Other maximum cable lengths are (these values are approximate):
 
-    100 meters (330 ft) at 500 kbit/s
-    200 meters (650 ft) at 250 kbit/s
-    500 meters (1600 ft) at 125 kbit/s
-    6 kilometres (20000 ft) at 10 kbit/s
+   100 meters (330 ft) at 500 kbit/s
+   200 meters (650 ft) at 250 kbit/s
+   500 meters (1600 ft) at 125 kbit/s
+   6 kilometres (20000 ft) at 10 kbit/s
 
 If optocouplers are used to provide galvanic isolation, the maximum bus length is decreased accordingly. Hint: use fast optocouplers, and look at the delay through the device, not at the specified maximum bit rate.
 </details>

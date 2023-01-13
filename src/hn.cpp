@@ -28,6 +28,13 @@ SlowHomeNet::SlowHomeNet(byte pin) {
     port_IO_reg = portOutputRegister(pin_port);  // PORTB, PORTC, PORTD etc. registers for bi-directional I/O
 }
 
+void SlowHomeNet::exc() {
+    // Todo / This could either handle stuff stored from the pin change interrupt .
+    // Todo / Or if the first pull low pulse is long enough this could read the incoming message. When resend is reliable could even wait for next send if busy.
+    // Todo / Or if you know you are going to be busy you could pull the line low :P
+    // to use this without interrupts would probably have to increase the number of start pulse bit length.
+}
+
 /**
  * @brief Send bits on the home network IO pin.
  *
@@ -81,21 +88,19 @@ byte SlowHomeNet::send(byte command, byte data) {
                         crc = Crc4(crcBuf, 2);
                     } else {  // bus contention at data bit dataSent
                         // read remainder of message
-                        if (lengthB >= (bufLength - 3)) return 3;
+                        if (buf.space() < 3) return 3;
+                        buf.push(0b001);  // command with 1 byte of data. If it was more we would of had priority.
+                        buf.push(command);
+                        buf.push((data >> (8 - dataSent)) bitand (byte)(~0b1));
                         bitPos = 8 + 3 + dataSent;
-                        buff[headP + lengthB + 1] = command;
-                        buff[headP + lengthB + 2] = (data >> (8 - dataSent)) bitand (byte)(~0b1);
-                        buff[headP + lengthB + 0] = 0b001;  // command with 1 byte of data. If it was more we would of had priority.
-                        lengthB += 3;
                         return 17;  // Higher priority message being sent. Maybe read it.
                     }
 
                 } else {
                     // another unit is sending command with no extra data.
-                    if (lengthB >= (bufLength - 2)) return 3;  // out of buff space for input.
-                    buff[headP + lengthB + 0] = 0b000;
-                    buff[headP + lengthB + 1] = command;
-                    lengthB += 2;
+                    if (buf.space() < 2) return 3;  // out of buff space for input.
+                    buf.push(0b000);
+                    buf.push(command);
                     bitPos = 8 + 3;
                     return 17;  // Higher priority message being sent. Maybe read it.
                 }
@@ -175,41 +180,102 @@ boolean SlowHomeNet::getNetwork() {
 //++++++++++++++++++++++++++++++++++++++++++++++++++++ Reed/receive/ watch line/pin +++++++++++++++++++++++++++++++++
 
 /**
- * @brief get the number of bits of the same level on the line upto the max of 'pulses'
- * 
- * @param pulses The max number of bits of the same level to wait for, Max of 0xFE.(but maybe should be 8 of something)
- * @param level The level of bits to check for, 3
- * @return byte, The number of bits of at least 1/2 a pulse length or 0xFF for timeout.
+ * @brief Read 'bits' number of bits from the line, Max 8
+ *
+ * @param bits The number of bits to read upto a max of 8.
+ * @return byte The bits read (not the number of).
  */
-byte SlowHomeNet::getPulseNo(byte pulses, byte level) {
-    byte x, c;
-    c = 0;
-    if (level > 1) level = digitalRead(networkPin);
-    for (x = 1; x <= (8 * pulses)+4; x++) {//+4 is for in-case the timing is out by upto 1/2 a pulse
-        if (digitalRead(networkPin) != level) {  // if line level changed for two checks in a row return true. This is to allow for nosy line spikes.
-                                                 // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
-            if (c > 0) {
-                c = x bitand 0b111;                     // c = remainder of x div 8
-                if (c > ((bitPulseLength >> 1) + 2)) {  // if remainder > (bitPulseLength / 2).
-                                                        // The +2 is for the extra wait for line spike check and maybe the same for the last call
-                                                        // and shouldn't hurt as a pulse should be more than 1/2 length anyway. Although not sure about the need to check at all.
-                    c = x >> 3 + 1;                     // c= x div 8 + 1
-                } else {
-                    c = x >> 3;  // c = x div 8
-                }
-                return c;
+byte SlowHomeNet::readBits(byte bits) {
+    byte bitCount, x, c, cc, out;
+    boolean level, levelC;
+    level = digitalRead(networkPin);  // this always needs to be LOW or HIGH i.e. 1 or 0 as it it used with 'bitor' to set the last bit.
+    if (bits > 8) bits = 8;
+    out = 0;
+    for (bitCount = 1; bitCount <= bits; bitCount++) {// loop through the bits given by 'bits'
+        c = 0;// count of high pulse in middle of bit pulse
+        cc = 0;//Count of level opposite of expected towards the end of the bit.
+        for (x = 1; x <= 8; x++) {// split each it into 8 check the levels.
+            levelC = digitalRead(networkPin);
+            if ((x > 2) and (x <= 6)) {  // middle part of bit pulse
+                if (levelC == HIGH) c++;
             }
-            c++;
-        } else {
-            if (c > 0) c--;
+            if ((x >= 6)) {  // If last part of pulse has changed then 'continue' on to next bit.
+                             // This should correct slightly off timings.
+                             // 6 would return upto 2 check faster?(1/4 of pulse length) but as if more (up 2 8) bits are the same level it is a lot less.
+                if ((levelC != level)) {
+                    cc++;
+                    if ((cc >= 2)) { continue; }  // allow for a transient line spike.
+                } else {
+                    cc = 0;
+                }
+            }
+            delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime); // 11 12 13 15
+            // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
+            // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
+            // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
         }
-        delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);
-        // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
-        // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
-        // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
+        if (c >= 3) level = HIGH;  // pulse is split into 8 and 3 out of the middle 4 checks are HIGH
+        else
+            level = LOW;
+        out = ((out << 1) bitor level);
+        level = levelC;  // if (levelC != level) level = levelC;
     }
-    return 0xff;// timeout, the line is staying at the same line level for longer/(more bits) than 'pulses'
+    // Serial.print(F("pin: "));Serial.print(networkPin);
+    // Serial.print(F(", level: "));Serial.print(level);
+    // Serial.print(F(", bits: "));Serial.print(bits);
+    // Serial.print(F(", out: "));Serial.print(out);
+    // Serial.println();
+
+    return out;
 }
+
+// /**
+//  *
+//  * TOdo This should be removed later.
+//  *
+//  * @brief get the number of bits of the same level on the line upto the max of 'pulses'
+//  *
+//  * @param pulses The max number of bits of the same level to wait for, Max of 0xFE.(but maybe should be 8 of something)
+//  * @param level The level of bits to check for, 3
+//  * @return byte, The number of bits of at least 1/2 a pulse length or 0xFF for timeout.
+//  */
+// byte SlowHomeNet::getPulseNo(byte pulses, byte level) {
+//     byte x, c;
+//     c = 0;
+//     if (level > 1) level = digitalRead(networkPin);
+//     else {
+//         for (x = 1; x <= 4; x++) {
+//             if (digitalRead(networkPin) != level) {
+//                 delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);
+//             } else
+//                 break;
+//         }
+//     }
+//     for (x = 1; x <= (8 * pulses) + 4; x++) {    //+4 is for in-case the timing is out by upto 1/2 a pulse
+//         if (digitalRead(networkPin) != level) {  // if line level changed for two checks in a row return true. This is to allow for nosy line spikes.
+//                                                  // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
+//             if (c > 0) {
+//                 c = x bitand 0b111;                     // c = remainder of x div 8
+//                 if (c > ((bitPulseLength >> 1) + 2)) {  // if remainder > (bitPulseLength / 2).
+//                                                         // The +2 is for the extra wait for line spike check and maybe the same for the last call
+//                                                         // and shouldn't hurt as a pulse should be more than 1/2 length anyway. Although not sure about the need to check at all.
+//                     c = x >> 3 + 1;                     // c= x div 8 + 1
+//                 } else {
+//                     c = x >> 3;  // c = x div 8
+//                 }
+//                 return c;
+//             }
+//             c++;
+//         } else {
+//             if (c > 0) c--;
+//         }
+//         delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);
+//         // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
+//         // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
+//         // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
+//     }
+//     return 0xff;  // timeout, the line is staying at the same line level for longer/(more bits) than 'pulses'
+// }
 
 /**
  * @brief Monitor the line for input.
@@ -220,15 +286,38 @@ byte SlowHomeNet::getPulseNo(byte pulses, byte level) {
  * @return byte Returns 0 for success, Message is stored in the buffer.
  */
 byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
-    byte line, c;
+    byte bufSI, line, r, RTR, dataLength, crc, ack, tl;
     do {
-        line = getPulseNo(1, HIGH);
-        if (line == 1) {
-            c++;
-        } else {
-            c = 0;
-        }
-    } while ((line == 0) or (c <= 2));
+        line = readBits(1);
+    } while ((line == 1) /*  check for time out */);  // While line is pulled high. i.e. no network activity.
+    bufSI = buf.nextIndex();
+    tl = buf.getLength();
+    r = readBits(8);
+    RTR = readBits(1);
+    dataLength = readBits(2);
+    buf.push(((RTR bitand 0b1) << 2) bitor ((dataLength bitand 0b11)));
+    buf.push(r);
+    if (dataLength >= 1) { buf.push(readBits(8)); }
+    if (dataLength >= 2) { buf.push(readBits(8)); }
+    if (dataLength >= 3) {
+        buf.push(readBits(8));
+        buf.push(readBits(8));
+    }
+    crc = readBits(4);
+    readBits(1);  // CRC delimiter. Delimiter is high.
+    if (Crc4buf(bufSI) == crc) {
+        // We could acknowledge here? If we are going to handle this message
+        // or maybe if the crc checks out if we decide to send back a message when we handle a command.
+    } else {
+        buf.setLength(tl);
+    }
+
+    ack = readBits(1);
+    readBits(1);  // Ack delimiter. Delimiter is high.
+    if (ack == 1) {
+    } else {
+    }
+    return 0;
 }
 
 void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
@@ -283,8 +372,7 @@ void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
         if (bitPos >= 11) {  // Should never be greater than 11.
             if ((dFlags & B1) == 0) {
                 dataIn = dataIn >> 2;
-                buff[(headP + lengthB) & bufMsk] = (byte)dataIn;
-                lengthB++;
+                buf.push(dataIn);
             } else {  // parity error
                 if (parityErrorCount < 0xFF)
                     parityErrorCount++;
@@ -317,8 +405,8 @@ static const uint8_t PROGMEM dscrc2x16_table[] = {
 
 // Compute a Dallas Semiconductor 8 bit CRC. These show up in the ROM
 // and the registers.  (Use tiny 2x16 entry CRC table)
-uint8_t OneWireCrc8(const uint8_t *addr, uint8_t len) {
-    uint8_t crc = 0;
+uint8_t OneWireCrc8(const uint8_t *addr, uint8_t len, uint8_t crc = 0) {
+    // uint8_t crc = 0;
 
     while (len--) {
         crc = *addr++ ^ crc;  // just re-using crc as intermediate
@@ -328,9 +416,25 @@ uint8_t OneWireCrc8(const uint8_t *addr, uint8_t len) {
 
     return crc;
 }
-
 byte SlowHomeNet::Crc4(uint8_t *addr, uint8_t len) {
     byte crc;
     crc = OneWireCrc8(addr, len);
+    return (((crc >> 4) xor (crc)) bitand 0b1111);
+}
+/// @brief works out the CRC from the frame stored in the buffer, handles wraparound & getting the frame data length from [i]
+/// @param i the index into the buffer to where first byte of the frame is stored. i.e. the data length and options.
+/// @return the CRC.
+byte SlowHomeNet::Crc4buf(uint8_t i) {
+    byte crc, l;
+    l = buf.peek(i) bitand 0b11;
+    if (l == 3) l = 4;  //[0,8,16,32] bits
+    l++;                // command id byte.
+    i = buf.bufIndex(i + 1);
+    if (i + (l - 1) >= buf.maxLen()) {                     // if buf wraps around from the end to the back to the beginning.
+        crc = OneWireCrc8(buf.bufP(i), buf.maxLen() - i);  // 8-7=1 or 8-5=3 with l=2
+        crc = OneWireCrc8(buf.bufP(0), l - (buf.maxLen() - i), crc);
+    } else {
+        crc = OneWireCrc8(buf.bufP(i), l);
+    }
     return (((crc >> 4) xor (crc)) bitand 0b1111);
 }

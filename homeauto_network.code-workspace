@@ -7,5 +7,14 @@
 			"path": "../libraries"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"cSpell.words": [
+			"Arjen"
+		],
+		"files.associations": {
+			"algorithm": "cpp",
+			"memory": "cpp",
+			"numeric": "cpp"
+		}
+	}
 }
