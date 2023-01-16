@@ -30,7 +30,7 @@
 #define homeNetPin 2
 //#define pinIO_no_of_switches 6               // setup the number of gpio's used
 //#define pinIO_inPins A7, A6, A0, A1, A2, A3  // in sa main.h
-#define pinIO_no_of_switches 4               // setup the number of gpio's used
+#define pinIO_no_of_switches 4       // setup the number of gpio's used
 #define pinIO_inPins A0, A1, A2, A3  // in sa main.h
 
 // byte pinIO_Max_switches = pinIO_no_of_switches;
@@ -50,12 +50,14 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
     Serial.print(count);
     Serial.print(F(", state:"));
     Serial.println(state);
-    hNet.send(state,0);
+    hNet.send(state, 0);
 }
 
 gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_in);
 
-
+#define STRINGIFY_(b) #b
+#define STRINGIFY(b) STRINGIFY_(b)
+//#define q__ @"
 void setup() {
     // byte id, i;
     Serial.begin(serial_speed);
@@ -65,12 +67,19 @@ void setup() {
     }
     Serial.println();
     Serial.println(F("Serial connected"));
+    Serial.println(F("program version: " STRINGIFY(VERSION)));
     Serial.print(F("Board type: "));
     Serial.println(F(board_name));
 
     wdt_enable(WDTO_8S);
 
     Serial.println(F("No internal pullup mode for A6 & A7"));
+#ifdef gpioDebugSetup
+    Serial.println(F("Debug flag \"gpioDebugSetup\" set"));
+#endif
+#ifdef send_buildflag
+    Serial.println(F("Debug flag \"send_buildflag\" set"));
+#endif
     // Serial.print(F("A0 = "));
     // Serial.print(A0);
     // Serial.print(F(", A7 = "));
@@ -92,9 +101,12 @@ void loop() {
     gpioIn.SwitchesExe();  // Func is debounced
     hNet.exc();
     wdt_disable();
-    r=hNet.receiveMonitor();// the chip will reset when the watch dog timer expires.
+    r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
     wdt_enable(WDTO_8S);
-    if (r==0){Serial.print(F("Message received, r = "));Serial.println(r);}
+    if (r == 0) {
+        Serial.print(F("Message received, r = "));
+        Serial.println(r);
+    }
     loopCount++;
 
     if (loopCount >= 1000) {
