@@ -10,7 +10,7 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 
 ## hn is short for Home Network here
 
-* Not to be confused with Ethernet. And is for wired.
+* Not to be confused with Ethernet. And is for wired networks.
 * This will be kind of like a very cut down and slow CAN network. So there will be no need for network hardware.
 
 ### Lets go with
