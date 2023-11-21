@@ -15,7 +15,14 @@
 		"files.associations": {
 			"algorithm": "cpp",
 			"memory": "cpp",
-			"numeric": "cpp"
-		}
+			"numeric": "cpp",
+			"stop_token": "cpp",
+			"*.tcc": "cpp",
+			"istream": "cpp"
+		},
+		"docwriter.style": "Auto-detect",
+		"docwriter.progress.trackFunctions": true,
+		"docwriter.progress.trackClasses": true,
+		"docwriter.progress.trackTypes": true
 	}
 }

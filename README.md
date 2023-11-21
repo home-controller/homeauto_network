@@ -4,7 +4,7 @@
 
 This is a slow send/receive network(no master/slave) with collision detection and handling. A bit like CAN but way slower and cut-down and no need for extra hardware.
 
-Collision detection works like 1-wire and CAN with the smallest number having priority and not even knowing there was a collision, the other unit will switch to reading mode and read the message. It can then try to send the message at a later time. For now any unit can Ack a message it can deal with. But maybe this should be changed to Ack if crc is checked and then send another message if the command it dealt with.
+Collision detection works like 1-wire and CAN with the smallest number having priority and not even knowing there was a collision(So no speed loss), the other unit will switch to reading mode and read the message. It can then try to send the message at a later time. For now any unit can Ack a message it can deal with. But maybe this should be changed to Ack if crc is checked and then send another message if the command it dealt with.
 
 The idea is for a wired basic and slow network so you do not have to worry to much about end reflection and having different HIGH and LOW states at different points on the line/wire. Being slow should also help with any timing problems and be more tolerant of other stuff like web pages or mqtt hogging the processor and/or interrupts
 
@@ -15,23 +15,24 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 
 ### Lets go with
 
-1. bits[1 Maybe more] A pull down pulse to say I am about to start sending.
+1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
+2. bits[1 Maybe more] A pull down pulse to say I am about to start sending.
 
-2. bits[8] command id. Maybe this should be moved dow 2 rows?
-3. bit3[1] RTR (Remote Transmission Request).
+3. bits[8] command id. Maybe this should be moved dow 2 rows?
+4. bit3[1] RTR (Remote Transmission Request).
 RTR = 0: for date frame 4. or RTR=1 for: "Remote-Request Frame".
 should we add a bit to set when we are sending the message back to say we handled it here.
 
-4. bits[2] data length in bytes 0=0,1=1,2=2,3=4
-5. bits[0,8,16,32] bits Then optional 8,16 or 32 bits of data.
-6. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
-7. bits[1]: CRC delimiter. Delimiter is high.
-8. bits[1] Ack bit
-9. bits[1] Ack delimiter bit
-10. bits[7] : 10: 7 bit end of fame.
+5. bits[2] data length in bytes 0=0,1=1,2=2,3=4
+6. bits[0,8,16,32] bits Then optional 8,16 or 32 bits of data.
+7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
+8. bits[1]: CRC delimiter. Delimiter is high.
+9. bits[1] Ack bit
+10. bits[1] Ack delimiter bit
+11. bits[7] : 10: 7 bit end of fame.
 
 ```fixed width text
-|S|mmmmmmmm|R|ccc|dddddddddddddddd|CCCC|D|A|D|eeeeeee|
+|S|mmmmmmmm|R|ccc|ddddddd16ddddddd|CCCC|D|A|D|eeeeeee|
 |1| 8bits  |?| 3 |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits
 |0|????????|?|???|????????????????|????|1|?|1|1111111| the bits value
 max 42 bits high?
@@ -40,6 +41,7 @@ max 42 bits high?
 [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
 
 * Using 488 bit/s for the bandwidth. The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
+* At 488 bit/s then 1 bit takes 1000,000µs / 488 = 2049+11∕61 approx 2048µs = in seconds 0.002048 = 1∕488
 
 * [ ] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
 * [ ] Implement crc
@@ -58,6 +60,7 @@ max 42 bits high?
 * [ ] Interrupt to start then continue with timing subsequent pin changes
 * [ ] Alternative first interrupt sets up a timer. Could even use pin change interrupt to correct timing at guaranteed bit change points.
 * [ ] TODO: interrupt version away to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
+* [ ] TODO: some can standards check the level of the pulse 87.5 persent along the pulse length this gives any ringing time to setal. http://www.bittiming.can-wiki.info/
 
 ## can protocol web pages
 

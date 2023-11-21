@@ -20,10 +20,13 @@
  * //  A6 & A7 are analogRead(); only, Can't use pinMode(A6,INPUT_PULLUP). Need to add a pull up resistor in hardware.
  */
 
+//#include <defs/src/defs.h>
 #include <defs.h>
+//#include "../../libraries/defs/src/defs.h"
 #include <gpioSwitchInput.h>
 #include <hn.h>
 
+/* Including the watchdog timer header file. */
 #include "/home/jmnc2/.platformio/packages/toolchain-atmelavr/avr/include/avr/wdt.h"
 
 #define serial_speed 38400
@@ -41,6 +44,15 @@ SlowHomeNet hNet(homeNetPin);
 unsigned long loopTimer;
 word loopCount;
 
+/**
+ * `gotInputPin` is called when a switch changes
+ * 
+ * @param ioType The type of input.  This is always 0 for a switch.
+ * @param i The index of the input pin that changed.
+ * @param offset The offset of the pin in the array of pins.
+ * @param count The number of times the switch has changed state.
+ * @param state The state of the switch.  0 for off, 1 for on.
+ */
 void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  // Callback when a switch changes
     Serial.print(F("ioType:"));
     Serial.print(ioType);
@@ -50,6 +62,9 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
     Serial.print(count);
     Serial.print(F(", state:"));
     Serial.println(state);
+    Serial.print(F("Sending state on network(pin "));
+    Serial.print(hNet.pin());
+    Serial.println(").");
     hNet.send(state, 0);
 }
 
@@ -58,6 +73,11 @@ gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_
 #define STRINGIFY_(b) #b
 #define STRINGIFY(b) STRINGIFY_(b)
 //#define q__ @"
+
+/**
+ * The function `setup()` is called once when the program starts. It sets up the serial port, the
+ * watchdog timer, and the input pins
+ */
 void setup() {
     // byte id, i;
     Serial.begin(serial_speed);
@@ -77,8 +97,13 @@ void setup() {
 #ifdef gpioDebugSetup
     Serial.println(F("Debug flag \"gpioDebugSetup\" set"));
 #endif
+
 #ifdef send_buildflag
     Serial.println(F("Debug flag \"send_buildflag\" set"));
+#endif
+
+#ifdef receive_buildflag
+    Serial.println(F("Flag \"receive_buildflag\" set"));
 #endif
     // Serial.print(F("A0 = "));
     // Serial.print(A0);
@@ -95,23 +120,46 @@ void setup() {
     loopTimer = micros();
 }
 
+/**
+ * The function is called every time through the main loop. It checks the switches, executes the
+ * network, and checks for a message
+ */
 void loop() {
+#ifdef receive_buildflag
     byte r;
+#endif
+    static byte c = 0;
     wdt_reset();
     gpioIn.SwitchesExe();  // Func is debounced
     hNet.exc();
+#ifdef receive_buildflag
     wdt_disable();
     r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
     wdt_enable(WDTO_8S);
     if (r == 0) {
         Serial.print(F("Message received, r = "));
         Serial.println(r);
+    } else {
+        Serial.print(F("Error receiving message, r = "));
+        Serial.println(r);
     }
+#endif
+#ifdef send_buildflag
+
+#endif
+
     loopCount++;
 
-    if (loopCount >= 1000) {
+    if (loopCount >= 50000 and (c <= 5)) {  // maxsize of a word is 65535 so if over tha will never pass
         loopCount = 0;
-        Serial.print(F("time for 1000 loops through the main loop"));
-        Serial.println(micros() - loopTimer);
+        Serial.print(F("Count: "));
+        Serial.print(c);
+        Serial.print(F(", Time for 50,000 loops through the main loop: "));
+        Serial.print(micros() - loopTimer);
+        Serial.print(F("µs / 488 Enough time to check each bit "));
+        Serial.print((micros() - loopTimer) / 488);
+        Serial.println(F(" times."));
+        loopTimer = micros();
+        c++;
     }
 }

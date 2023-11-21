@@ -17,7 +17,7 @@
 
 #include <Arduino.h>
 
-#include "circular_bufC.h"
+#include "circular_buf.h"
 
 #define MaxInUseHigh
 class SlowHomeNet {
@@ -27,6 +27,14 @@ class SlowHomeNet {
     void exc();             // Need to call each time though the main loop.
     byte send(byte command, byte date);
     byte receiveMonitor();
+    byte pin();
+
+    // unit testing stuff
+#ifdef UnitTest
+// To read a bit on the line we divide the time for 1 bit by 8 and check at each point in time. this is the point in time
+// 1 is the start and 8 is the end. We can use this to provide dummy test values for testing.
+    byte inBitPos;
+#endif
 
    private:
     // wouldn't bother with storing this in SRAM but for to keep the ISR faster.
@@ -90,7 +98,6 @@ class SlowHomeNet {
     byte readBits(byte bits);
 
     byte getPulseNo(byte pulses, byte level);
- 
 
     boolean getNetwork();
     byte Crc4(uint8_t *addr, uint8_t len);

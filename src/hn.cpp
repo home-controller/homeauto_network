@@ -71,6 +71,13 @@ boolean SlowHomeNet::checkPinInput() {
     return ((*pin_DDR_reg & pin_bit_msk) == 0);  // set bit is output.
 }
 
+byte SlowHomeNet::pin() {
+    return networkPin;
+}
+// void SlowHomeNet::pin(byte p) {
+//     networkPin=p;
+// }
+
 byte SlowHomeNet::send(byte command, byte data) {
     byte sent, dataSent, crc;
     byte crcBuf[2];
@@ -136,6 +143,8 @@ byte SlowHomeNet::send(byte command, byte data) {
  *
  * @param pulses Number of bitPulseLength pulses of time to monitor the line for.
  * @return boolean return true if the line level changed else false.
+ * @todo some can standards check the level of the pulse 87.5 persent along the pulse length
+ * this gives any ringing time to setal.
  */
 boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
     byte x, c;
@@ -183,7 +192,7 @@ boolean SlowHomeNet::getNetwork() {
  * @brief Read 'bits' number of bits from the line, Max 8
  *
  * @param bits The number of bits to read upto a max of 8.
- * @return byte The bits read (not the number of).
+ * @return byte The value read i.e. if bit read were 1,0,1,1 that would be 0b1011= 11.
  */
 byte SlowHomeNet::readBits(byte bits) {
     byte bitCount, x, c, cc, out;
@@ -195,6 +204,10 @@ byte SlowHomeNet::readBits(byte bits) {
         c = 0;// count of high pulse in middle of bit pulse
         cc = 0;//Count of level opposite of expected towards the end of the bit.
         for (x = 1; x <= 8; x++) {// split each it into 8 check the levels.
+            #ifdef UnitTest
+            inBitPos = x;
+            #endif
+
             levelC = digitalRead(networkPin);
             if ((x > 2) and (x <= 6)) {  // middle part of bit pulse
                 if (levelC == HIGH) c++;
@@ -421,12 +434,13 @@ byte SlowHomeNet::Crc4(uint8_t *addr, uint8_t len) {
     crc = OneWireCrc8(addr, len);
     return (((crc >> 4) xor (crc)) bitand 0b1111);
 }
+
 /// @brief works out the CRC from the frame stored in the buffer, handles wraparound & getting the frame data length from [i]
-/// @param i the index into the buffer to where first byte of the frame is stored. i.e. the data length and options.
+/// @param i Index into the array the circular buffer is stored in where the first byte of the frame is stored. i.e. the data length and options.
 /// @return the CRC.
 byte SlowHomeNet::Crc4buf(uint8_t i) {
     byte crc, l;
-    l = buf.peek(i) bitand 0b11;
+    l = buf.getBufArrayElement(i) bitand 0b11;
     if (l == 3) l = 4;  //[0,8,16,32] bits
     l++;                // command id byte.
     i = buf.bufIndex(i + 1);
@@ -438,3 +452,8 @@ byte SlowHomeNet::Crc4buf(uint8_t i) {
     }
     return (((crc >> 4) xor (crc)) bitand 0b1111);
 }
+
+//======================================================hardware dependent fuctions below here================================================
+
+// Hardware dependent pin/line manipulation functions. May need to be different depending on the board e.g. for arduino nano or RP2040
+// should also probably include a test dummy function for testing unit code.
