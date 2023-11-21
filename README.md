@@ -38,7 +38,7 @@ should we add a bit to set when we are sending the message back to say we handle
 max 42 bits high?
 ```
 
-* [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
+* [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(6 ?) of high or low bits instead of relying on parity bit.
 
 * I think(should look it up) CAN have a max pull-down of 6 bits and anything more is used to set an error. So if one unit gets a CRC error it can use this to cancel the send and set an error thus keeping all units in sync.
 * Using 488 bit/s for the bandwidth. The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
@@ -47,7 +47,6 @@ max 42 bits high?
 * [ ] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
 * [ ] Implement crc
 * [ ] handle the rest of the data lengths.
-* [ ] Should probably use CAN style, add a inverted bit if long sequence(6 ?) of high or low bits instead of relying on parity bit.
 * [ ] Acknowledgment frame bit set for messages that this unit can deal with.
 * [ ] Acknowledgment option by sending back the crc checksum.
 * [ ] Maybe add some more of the CAN error checking in the 7 bit end frame.
