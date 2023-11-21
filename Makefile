@@ -72,3 +72,7 @@ test:
 test_clean:
 	make -C $(TEST_DIR) clean
 
+.PHONY: edit
+edit:
+	code-insiders --extensions-dir="../vscode/insiders/extensions" homeauto_network.code-workspace
+

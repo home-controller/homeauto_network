@@ -8,9 +8,9 @@ Collision detection works like 1-wire and CAN with the smallest number having pr
 
 The idea is for a wired basic and slow network so you do not have to worry to much about end reflection and having different HIGH and LOW states at different points on the line/wire. Being slow should also help with any timing problems and be more tolerant of other stuff like web pages or mqtt hogging the processor and/or interrupts
 
-## hn is short fot Home Network here
+## hn is short for Home Network here
 
-* Not to be confused with Ethernet.
+* Not to be confused with Ethernet. And is for wired.
 * This will be kind of like a very cut down and slow CAN network. So there will be no need for network hardware.
 
 ### Lets go with
@@ -18,7 +18,7 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 2. bits[1 Maybe more] A pull down pulse to say I am about to start sending.
 
-3. bits[8] command id. Maybe this should be moved dow 2 rows?
+3. bits[8] command id. Maybe this should be moved down 2 rows?
 4. bit3[1] RTR (Remote Transmission Request).
 RTR = 0: for date frame 4. or RTR=1 for: "Remote-Request Frame".
 should we add a bit to set when we are sending the message back to say we handled it here.
@@ -38,15 +38,16 @@ should we add a bit to set when we are sending the message back to say we handle
 max 42 bits high?
 ```
 
-[ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
+* [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving.
 
+* I think(should look it up) CAN have a max pull-down of 6 bits and anything more is used to set an error. So if one unit gets a CRC error it can use this to cancel the send and set an error thus keeping all units in sync.
 * Using 488 bit/s for the bandwidth. The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 * At 488 bit/s then 1 bit takes 1000,000µs / 488 = 2049+11∕61 approx 2048µs = in seconds 0.002048 = 1∕488
 
 * [ ] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
 * [ ] Implement crc
 * [ ] handle the rest of the data lengths.
-* [ ] Should probably use CAN style, add a inverted bit if long sequence of high or low bits instead of relying on parity bit.
+* [ ] Should probably use CAN style, add a inverted bit if long sequence(6 ?) of high or low bits instead of relying on parity bit.
 * [ ] Acknowledgment frame bit set for messages that this unit can deal with.
 * [ ] Acknowledgment option by sending back the crc checksum.
 * [ ] Maybe add some more of the CAN error checking in the 7 bit end frame.
@@ -60,7 +61,7 @@ max 42 bits high?
 * [ ] Interrupt to start then continue with timing subsequent pin changes
 * [ ] Alternative first interrupt sets up a timer. Could even use pin change interrupt to correct timing at guaranteed bit change points.
 * [ ] TODO: interrupt version away to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
-* [ ] TODO: some can standards check the level of the pulse 87.5 persent along the pulse length this gives any ringing time to setal. http://www.bittiming.can-wiki.info/
+* [ ] TODO: Some can standards check the level of the pulse 87.5 percent along the pulse length, this gives any reflections/ringing time to settle, see: <http://www.bittiming.can-wiki.info/>
 
 ## can protocol web pages
 
