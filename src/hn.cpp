@@ -143,8 +143,8 @@ byte SlowHomeNet::send(byte command, byte data) {
  *
  * @param pulses Number of bitPulseLength pulses of time to monitor the line for.
  * @return boolean return true if the line level changed else false.
- * @todo some can standards check the level of the pulse 87.5 persent along the pulse length
- * this gives any ringing time to setal.
+ * @todo some can standards check the level of the pulse 87.5 percent along the pulse length
+ * this gives any ringing time to settle.
  */
 boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
     byte x, c;

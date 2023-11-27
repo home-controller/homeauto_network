@@ -11,7 +11,11 @@
  * Ethernet shield attached with SPI to pins 10, 11, 12, 13 + 9 for reset
  * Output for relays on pins 3, 4 See relays.h tab
  * switch pins Connected to switch directly 14(A0), 15(A1), 16(A2), A3(17) A6(20),A7(21) Set to pullup A6 and A7 can't be pullup
- * switch controller network             2,3,4
+ * 
+ * ================This one is us=======================
+ * + switch controller network             2,3,4       +
+ * =====================================================
+ * 
  * //  1-wire                                5,6,7
  * //  SPISerial Peripheral Interface        (8,9 select 2 SPI slaves,can be any pins)10,11,12,13
  * //  GPIO output, relay, Led, etc.     8, D3(3), 9, A3(17) Over lap with above.
@@ -24,7 +28,7 @@
 #include <defs.h>
 //#include "../../libraries/defs/src/defs.h"
 #include <gpioSwitchInput.h>
-#include <hn.h>
+#include "hn.h"
 
 /* Including the watchdog timer header file. */
 #include "/home/jmnc2/.platformio/packages/toolchain-atmelavr/avr/include/avr/wdt.h"
