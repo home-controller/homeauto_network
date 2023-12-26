@@ -10,7 +10,8 @@
 	"settings": {
 		"cSpell.words": [
 			"Arjen",
-			"buildflag"
+			"buildflag",
+			"SWITCHCAPVCC"
 		],
 		"files.associations": {
 			"algorithm": "cpp",

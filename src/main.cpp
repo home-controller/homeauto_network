@@ -11,11 +11,11 @@
  * Ethernet shield attached with SPI to pins 10, 11, 12, 13 + 9 for reset
  * Output for relays on pins 3, 4 See relays.h tab
  * switch pins Connected to switch directly 14(A0), 15(A1), 16(A2), A3(17) A6(20),A7(21) Set to pullup A6 and A7 can't be pullup
- * 
+ *
  * ================This one is us=======================
  * + switch controller network             2,3,4       +
  * =====================================================
- * 
+ *
  * //  1-wire                                5,6,7
  * //  SPISerial Peripheral Interface        (8,9 select 2 SPI slaves,can be any pins)10,11,12,13
  * //  GPIO output, relay, Led, etc.     8, D3(3), 9, A3(17) Over lap with above.
@@ -24,10 +24,17 @@
  * //  A6 & A7 are analogRead(); only, Can't use pinMode(A6,INPUT_PULLUP). Need to add a pull up resistor in hardware.
  */
 
-//#include <defs/src/defs.h>
+// #include <defs/src/defs.h>
 #include <defs.h>
-//#include "../../libraries/defs/src/defs.h"
+// #include "../../libraries/defs/src/defs.h"
+#ifdef OLED_I2C
+#include <Adafruit_SSD1306.h>
+#define WIRE Wire
+
+#endif
+
 #include <gpioSwitchInput.h>
+
 #include "hn.h"
 
 /* Including the watchdog timer header file. */
@@ -35,8 +42,8 @@
 
 #define serial_speed 38400
 #define homeNetPin 2
-//#define pinIO_no_of_switches 6               // setup the number of gpio's used
-//#define pinIO_inPins A7, A6, A0, A1, A2, A3  // in sa main.h
+// #define pinIO_no_of_switches 6               // setup the number of gpio's used
+// #define pinIO_inPins A7, A6, A0, A1, A2, A3  // in sa main.h
 #define pinIO_no_of_switches 4       // setup the number of gpio's used
 #define pinIO_inPins A0, A1, A2, A3  // in sa main.h
 
@@ -50,7 +57,7 @@ word loopCount;
 
 /**
  * `gotInputPin` is called when a switch changes
- * 
+ *
  * @param ioType The type of input.  This is always 0 for a switch.
  * @param i The index of the input pin that changed.
  * @param offset The offset of the pin in the array of pins.
@@ -76,7 +83,11 @@ gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_
 
 #define STRINGIFY_(b) #b
 #define STRINGIFY(b) STRINGIFY_(b)
-//#define q__ @"
+
+#ifdef OLED_I2C
+Adafruit_SSD1306 display = Adafruit_SSD1306(128, 32, &WIRE);
+#endif
+// #define q__ @"
 
 /**
  * The function `setup()` is called once when the program starts. It sets up the serial port, the
@@ -98,17 +109,30 @@ void setup() {
     wdt_enable(WDTO_8S);
 
     Serial.println(F("No internal pullup mode for A6 & A7"));
-#ifdef gpioDebugSetup
+#if defined gpioDebugSetup
     Serial.println(F("Debug flag \"gpioDebugSetup\" set"));
 #endif
 
-#ifdef send_buildflag
+#if defined send_buildflag
     Serial.println(F("Debug flag \"send_buildflag\" set"));
+#else
+#if defined receive_buildflag
+    Serial.println(F("Flag \"receive_buildflag\" set"));
+#else
+    Serial.println(F("No flag for \"send_buildflag\" or \"receive_buildflag\" set"
+#endif
 #endif
 
-#ifdef receive_buildflag
-    Serial.println(F("Flag \"receive_buildflag\" set"));
+#ifdef OLED_I2C
+    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // Address 0x3C for 128x32
+    Serial.println("OLED begun");
+    // Show image buffer on the display hardware.
+    // Since the buffer is initalized with an Adafruit splashscreen
+    // internally, this will display the splashscreen.
+    display.display();
+    delay(1000);
 #endif
+
     // Serial.print(F("A0 = "));
     // Serial.print(A0);
     // Serial.print(F(", A7 = "));
