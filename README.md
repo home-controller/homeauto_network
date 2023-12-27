@@ -16,33 +16,42 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 ### Lets go with
 
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
-2. bits[1 Maybe more] A pull down pulse to say I am about to start sending.
 
+2. bits[1 Maybe more] A pull down pulse to say I am about to start sending.
 3. bits[8] command id. Maybe this should be moved down 2 rows?
 4. bit3[1] RTR (Remote Transmission Request).
-RTR = 0: for date frame 4. or RTR=1 for: "Remote-Request Frame".
+4.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
 should we add a bit to set when we are sending the message back to say we handled it here.
 
 5. bits[2] data length in bytes 0=0,1=1,2=2,3=4
 6. bits[0,8,16,32] bits Then optional 8,16 or 32 bits of data.
 7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
 8. bits[1]: CRC delimiter. Delimiter is high.
-9. bits[1] Ack bit
-10. bits[1] Ack delimiter bit
+9. bits[1] Ack bit. With CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
+10. bits[1] Ack delimiter bit (this high to?)
 11. bits[7] : 10: 7 bit end of fame.
 
 ```fixed width text
 |S|mmmmmmmm|R|ccc|ddddddd16ddddddd|CCCC|D|A|D|eeeeeee|
 |1| 8bits  |?| 3 |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits
 |0|????????|?|???|????????????????|????|1|?|1|1111111| the bits value
-max 42 bits high?
+max 42 bits high? 
+
+How did I get that? for data R is low so after that:
+3(data length)+32(data)+4(CRC maybe with the right value of id(can't be bothered working it out))
++ 1 for (CRC delimiter) + 1 (Ack bit)  + 1 (Ack delimiter) + 7 (end of frame bits) well Then it just stays in the default high unused line state.
+
+so:  3+32+4+1+1+1+7 = 49, or 42 not counting the 7 at end.
+
+So minimum number of bits for a message is 20 with no date and not waiting for end of frame.
 ```
 
 * [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(6 ?) of high or low bits instead of relying on parity bit.
 
 * I think(should look it up) CAN have a max pull-down of 6 bits and anything more is used to set an error. So if one unit gets a CRC error it can use this to cancel the send and set an error thus keeping all units in sync.
-* Using 488 bit/s for the bandwidth. The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
-* At 488 bit/s then 1 bit takes 1000,000µs / 488 = 2049+11∕61 approx 2048µs = in seconds 0.002048 = 1∕488
+* Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.
+* The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
+* At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
 
 * [ ] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
 * [ ] Implement crc

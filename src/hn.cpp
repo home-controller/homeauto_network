@@ -32,7 +32,7 @@ void SlowHomeNet::exc() {
     // Todo / This could either handle stuff stored from the pin change interrupt .
     // Todo / Or if the first pull low pulse is long enough this could read the incoming message. When resend is reliable could even wait for next send if busy.
     // Todo / Or if you know you are going to be busy you could pull the line low :P
-    // to use this without interrupts would probably have to increase the number of start pulse bit length.
+    // to use this without interrupts would probably have to increase the time of start pulse bit length.
 }
 
 /**
@@ -291,7 +291,7 @@ byte SlowHomeNet::readBits(byte bits) {
 // }
 
 /**
- * @brief Monitor the line for input.
+ * @brief Blocking! Monitor the line for input.
  *
  * @details As this stays here until a message is received only good for testing or if there are no other inputs from switches etc.
  * Although I guess there could be stuff on interrupts.

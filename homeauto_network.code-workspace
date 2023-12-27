@@ -11,7 +11,8 @@
 		"cSpell.words": [
 			"Arjen",
 			"buildflag",
-			"SWITCHCAPVCC"
+			"SWITCHCAPVCC",
+			"WDTO"
 		],
 		"files.associations": {
 			"algorithm": "cpp",

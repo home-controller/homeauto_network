@@ -3,6 +3,9 @@
         "Arjen",
         "buildflag",
         "dscrc",
-        "PORTD"
+        "PORTD",
+        "SWITCHCAPVCC",
+        "WDTO",
+        "XIAO"
     ]
 }

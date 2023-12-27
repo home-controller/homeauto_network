@@ -28,8 +28,17 @@
 #include <defs.h>
 // #include "../../libraries/defs/src/defs.h"
 #ifdef OLED_I2C
-#include <Adafruit_SSD1306.h>
-#define WIRE Wire
+// #include <Adafruit_SSD1306.h>
+// #define WIRE Wire
+// Adafruit_SSD1306 display = Adafruit_SSD1306(128, 32, &WIRE);
+#include <Adafruit_SH110X.h>
+
+#define i2c_Address 0x3c // initialize with the I2C addr 0x3C Typically eBay OLED's
+#define OLED_RESET -1    //   QT-PY / XIAO
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+
+Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 #endif
 
@@ -44,8 +53,8 @@
 #define homeNetPin 2
 // #define pinIO_no_of_switches 6               // setup the number of gpio's used
 // #define pinIO_inPins A7, A6, A0, A1, A2, A3  // in sa main.h
-#define pinIO_no_of_switches 4       // setup the number of gpio's used
-#define pinIO_inPins A0, A1, A2, A3  // in sa main.h
+#define pinIO_no_of_switches 4      // setup the number of gpio's used
+#define pinIO_inPins A0, A1, A2, A3 // in sa main.h
 
 // byte pinIO_Max_switches = pinIO_no_of_switches;
 byte pinIO_switchState[pinIO_no_of_switches];
@@ -64,7 +73,8 @@ word loopCount;
  * @param count The number of times the switch has changed state.
  * @param state The state of the switch.  0 for off, 1 for on.
  */
-void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  // Callback when a switch changes
+void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state)
+{ // Callback when a switch changes
     Serial.print(F("ioType:"));
     Serial.print(ioType);
     Serial.print(F(", i:"));
@@ -84,20 +94,19 @@ gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_
 #define STRINGIFY_(b) #b
 #define STRINGIFY(b) STRINGIFY_(b)
 
-#ifdef OLED_I2C
-Adafruit_SSD1306 display = Adafruit_SSD1306(128, 32, &WIRE);
-#endif
 // #define q__ @"
 
 /**
  * The function `setup()` is called once when the program starts. It sets up the serial port, the
  * watchdog timer, and the input pins
  */
-void setup() {
+void setup()
+{
     // byte id, i;
     Serial.begin(serial_speed);
-    while (!Serial) {
-        ;  // wait for serial port to connect. Needed for native USB port only
+    while (!Serial)
+    {
+        ; // wait for serial port to connect. Needed for native USB port only
         delay(100);
     }
     Serial.println();
@@ -124,13 +133,21 @@ void setup() {
 #endif
 
 #ifdef OLED_I2C
-    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // Address 0x3C for 128x32
+    //   display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // Address 0x3C for 128x32
+    display.begin(i2c_Address, true); // Address 0x3C default
+    display.cp437(true);
+
     Serial.println("OLED begun");
     // Show image buffer on the display hardware.
     // Since the buffer is initalized with an Adafruit splashscreen
     // internally, this will display the splashscreen.
     display.display();
-    delay(1000);
+    delay(3000); // watchdog timer will reset the MCU if the delay is for to long.
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SH110X_WHITE);
+    display.println("Beginning Network testing");
+    display.display();
 #endif
 
     // Serial.print(F("A0 = "));
@@ -152,22 +169,27 @@ void setup() {
  * The function is called every time through the main loop. It checks the switches, executes the
  * network, and checks for a message
  */
-void loop() {
+void loop()
+{
 #ifdef receive_buildflag
     byte r;
 #endif
     static byte c = 0;
     wdt_reset();
-    gpioIn.SwitchesExe();  // Func is debounced
+    gpioIn.SwitchesExe(); // Func is debounced
     hNet.exc();
 #ifdef receive_buildflag
+/// really need to 
     wdt_disable();
-    r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
+    r = hNet.receiveMonitor(); // the chip will reset when the watch dog timer expires.
     wdt_enable(WDTO_8S);
-    if (r == 0) {
+    if (r == 0)
+    {
         Serial.print(F("Message received, r = "));
         Serial.println(r);
-    } else {
+    }
+    else
+    {
         Serial.print(F("Error receiving message, r = "));
         Serial.println(r);
     }
@@ -178,7 +200,8 @@ void loop() {
 
     loopCount++;
 
-    if (loopCount >= 50000 and (c <= 5)) {  // maxsize of a word is 65535 so if over tha will never pass
+    if (loopCount >= 50000 and (c <= 5))
+    { // maxsize of a word is 65535 so if over tha will never pass
         loopCount = 0;
         Serial.print(F("Count: "));
         Serial.print(c);
