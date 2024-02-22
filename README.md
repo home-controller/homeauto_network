@@ -50,7 +50,7 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 
 * I think(should look it up) CAN have a max pull-down of 6 bits and anything more is used to set an error. So if one unit gets a CRC error it can use this to cancel the send and set an error thus keeping all units in sync.
 * Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.
-* The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
+* The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 * At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
 
 * [ ] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
