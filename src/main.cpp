@@ -10,7 +10,7 @@
  Circuit:
  * Ethernet shield attached with SPI to pins 10, 11, 12, 13 + 9 for reset
  * Output for relays on pins 3, 4 See relays.h tab
- * switch pins Connected to switch directly 14(A0), 15(A1), 16(A2), A3(17) A6(20),A7(21) Set to pullup A6 and A7 can't be pullup
+ * switch pins Connected to switch directly 14(A0), 15(A1), 16(A2), A3(17) A6(20),A7(21) Set to pullup, A6 and A7 can't be pullup on some chips
  *
  * ================This one is us=======================
  * + switch controller network             2,3,4       +
@@ -38,6 +38,9 @@
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
+#define NextBoardId 28
+#define eepromIdAddr 250
+
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 #endif
@@ -48,6 +51,7 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 
 
 /* Including the watchdog timer header file. */
 #include "/home/jmnc2/.platformio/packages/toolchain-atmelavr/avr/include/avr/wdt.h"
+#include <EEPROM.h>
 
 #define serial_speed 38400
 #define homeNetPin 2
@@ -102,6 +106,32 @@ gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_
  */
 void setup()
 {
+    byte id;
+    byte NBId = NextBoardId;
+    id = EEPROM.read(eepromIdAddr);
+    // id=0xFF; hard set of board id
+#if defined hard_set_boardID
+    Serial.println(F("Hard setting board ID to passed C flag value"));
+    id == 0xFF);
+    NBId = hard_set_boardID;
+#elif defined suggest_boardID
+    if (id == 0xFF)
+        Serial.println(F("Next board ID passed as a C flag"));
+    NBId = suggest_boardID;
+#endif
+    if (id == 0xFF)
+    {
+        Serial.print(F("Board ID not set, setting board ID to:"));
+
+        Serial.println(NBId);
+        EEPROM.update(eepromIdAddr, NBId);
+        id = NBId;
+    }
+    else
+    {
+        Serial.print(F("Got board ID: "));
+        Serial.println(id);
+    }
     // byte id, i;
     Serial.begin(serial_speed);
     while (!Serial)
@@ -179,7 +209,7 @@ void loop()
     gpioIn.SwitchesExe(); // Func is debounced
     hNet.exc();
 #ifdef receive_buildflag
-/// really need to 
+    /// really need to
     wdt_disable();
     r = hNet.receiveMonitor(); // the chip will reset when the watch dog timer expires.
     wdt_enable(WDTO_8S);
