@@ -71,7 +71,7 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 * [ ] TODO: interrupt version away to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
 * [ ] TODO: Some can standards check the level of the pulse 87.5 percent along the pulse length, this gives any reflections/ringing time to settle, see: <http://www.bittiming.can-wiki.info/>
 
-## can protocol web pages
+## Can protocol web pages
 
 * <https://www.kvaser.com/can-protocol-tutorial/>
 * <https://copperhilltech.com/blog/controller-area-network-can-bus-tutorial-message-frame-format/>
@@ -90,3 +90,20 @@ Other maximum cable lengths are (these values are approximate):
 
 If optocouplers are used to provide galvanic isolation, the maximum bus length is decreased accordingly. Hint: use fast optocouplers, and look at the delay through the device, not at the specified maximum bit rate.
 </details>
+
+## Checking for duplicate Board ID
+
+* [ ] TODO: option to check if anyone else has the same ID 1 time per boot. this would be done the first time the board receives user input i.e. when a switch is used so it is unlikely for any other boards to check at the same time.
+* [ ] TODO: single-wire CAN uses a 9.09k ohm pull-up resistor <details>  <summary>Single wire CAN bus example from chip data sheet</summary>
+![image](docs/images/can_network_single_wire_example.jpg)
+see https://www.onsemi.com/pdf/datasheet/ncv7356-d.pdf for data sheet.</details>
+If we add a resistor to the IO pin to limit the current in case of short to ground(or to v++ if using pull-up) we could then use the voltage on the bus pin to check for unit id duplicating at the time of the first user event.
+
+## Bus line hardware, protection. pull-up values etc.
+
+* [ ] TODO: For testing I will use a 220 ohm resistor on the IO pin so any code error will not kill the chips as this should limit the current to 23mA.
+* [ ] TODO: for testing the pull-up wil be the MCUs internal pull-up.
+* [ ] TODO: The above 2(maybe more) will need to be checked if they create problems with slope speed and voltage check ranges.
+* [ ] TODO: Most of the above should be options.
+* [ ] TODO: Add a slope shaping circuit something similar to the example from the Onsemi date-sheet above maybe.
+* [ ] TODO: Check how robust the internal (20kΩ ??) and 220Ω resistors are.

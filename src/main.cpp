@@ -38,8 +38,6 @@
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
-#define NextBoardId 28
-#define eepromIdAddr 250
 
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
@@ -59,6 +57,9 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 
 // #define pinIO_inPins A7, A6, A0, A1, A2, A3  // in sa main.h
 #define pinIO_no_of_switches 4      // setup the number of gpio's used
 #define pinIO_inPins A0, A1, A2, A3 // in sa main.h
+
+#define NextBoardId 28
+#define eepromIdAddr 250
 
 // byte pinIO_Max_switches = pinIO_no_of_switches;
 byte pinIO_switchState[pinIO_no_of_switches];
