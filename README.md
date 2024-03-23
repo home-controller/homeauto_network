@@ -4,7 +4,10 @@
 
 This is a slow send/receive network(no master/slave) with collision detection and handling. A bit like CAN but way slower and cut-down and no need for extra hardware.
 
-Collision detection works like 1-wire and CAN with the smallest number having priority and not even knowing there was a collision(So no speed loss), the other unit will switch to reading mode and read the message. It can then try to send the message at a later time. For now any unit can Ack a message it can deal with. But maybe this should be changed to Ack if crc is checked and then send another message if the command it dealt with.
+Collision detection works like 1-wire and CAN with the smallest number having priority and not even knowing there was a collision(So no speed loss), the other unit will switch to reading mode and read the message. It can then try to send the message at a later time.
+
+For now any unit can Ack a message it can deal with.
+With CAN the Ack bit is pulled low by any unit that fails CRC. Maybe should add a bit to pull low for units that can deal with he messaged, e.g. turn on the light etc. Or could just send a message when the light is turned on to show it's current state.
 
 The idea is for a wired basic and slow network so you do not have to worry to much about end reflection and having different HIGH and LOW states at different points on the line/wire. Being slow should also help with any timing problems and be more tolerant of other stuff like web pages or mqtt hogging the processor and/or interrupts
 
@@ -54,9 +57,11 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 * At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
 
 * [ ] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
-* [ ] Implement crc
 * [ ] handle the rest of the data lengths.
-* [ ] Acknowledgment frame bit set for messages that this unit can deal with.
+* [ ] Implement crc
+* [ ]   each unit on the line will pull the Ack bit low on CRC fail
+* [ ] Add an additional Ack bit for units that can handel a message.
+* [ ]   Acknowledgment frame bit set for messages that this unit can deal with.
 * [ ] Acknowledgment option by sending back the crc checksum.
 * [ ] Maybe add some more of the CAN error checking in the 7 bit end frame.
 
@@ -79,14 +84,14 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 <details>
   <summary>Maximum Cable Length</summary>
 
-At a speed of 1 Mbit/s, a maximum cable length of about 40 meters (130 ft.) can be used. This is because the arbitration scheme requires that the wave front of the signal be able to propagate to the most remote node and back again before the bit is sampled. In other words, the cable length is restricted by the speed of light. A proposal to increase the speed of light has been considered but was turned down because of its inter-galactic consequences.
+At a speed of 1 MBit/s, a maximum cable length of about 40 meters (130 ft.) can be used. This is because the arbitration scheme requires that the wave front of the signal be able to propagate to the most remote node and back again before the bit is sampled. In other words, the cable length is restricted by the speed of light. A proposal to increase the speed of light has been considered but was turned down because of its inter-galactic consequences.
 
 Other maximum cable lengths are (these values are approximate):
 
-   100 meters (330 ft) at 500 kbit/s
-   200 meters (650 ft) at 250 kbit/s
-   500 meters (1600 ft) at 125 kbit/s
-   6 kilometres (20000 ft) at 10 kbit/s
+   100 meters (330 ft) at 500 kBit/s
+   200 meters (650 ft) at 250 kBit/s
+   500 meters (1600 ft) at 125 kBit/s
+   6 kilometers (20000 ft) at 10 kBit/s
 
 If optocouplers are used to provide galvanic isolation, the maximum bus length is decreased accordingly. Hint: use fast optocouplers, and look at the delay through the device, not at the specified maximum bit rate.
 </details>
