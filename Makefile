@@ -81,3 +81,14 @@ edit:
 list:
 	pio device list
 
+#Add udev rules
+.PHONY: udev
+udev:
+#	#curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules | sudo tee /etc/udev/rules.d/99-platformio-udev.rules
+	@echo "Adding user to uucp and lock groups..."
+	@sudo usermod -a -G uucp,lock $(shell whoami) || { echo "Failed to add user to groups."; exit 1; }
+	@echo "Reloading udev rules..."
+	@sudo udevadm control --reload-rules || { echo "Failed to reload udev rules."; exit 1; }
+	@echo "Triggering udev..."
+	@sudo udevadm trigger || { echo "Failed to trigger udev."; exit 1; }
+	@echo "Finished."
