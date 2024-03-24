@@ -76,3 +76,8 @@ test_clean:
 edit:
 	code-insiders --extensions-dir="../vscode/insiders/extensions" homeauto_network.code-workspace
 
+#list conected devises
+.PHONY: list
+list:
+	pio device list
+
