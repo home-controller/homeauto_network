@@ -1,4 +1,4 @@
-# Homeauto Network
+# HomeAuto Network
 
 ## Still in Afa, unfinished code
 
@@ -93,7 +93,7 @@ Other maximum cable lengths are (these values are approximate):
    500 meters (1600 ft) at 125 kBit/s
    6 kilometers (20000 ft) at 10 kBit/s
 
-If optocouplers are used to provide galvanic isolation, the maximum bus length is decreased accordingly. Hint: use fast optocouplers, and look at the delay through the device, not at the specified maximum bit rate.
+If opto-couplers are used to provide galvanic isolation, the maximum bus length is decreased accordingly. Hint: use fast opto-couplers, and look at the delay through the device, not at the specified maximum bit rate.
 </details>
 
 ## Checking for duplicate Board ID
@@ -104,7 +104,7 @@ If optocouplers are used to provide galvanic isolation, the maximum bus length i
 see https://www.onsemi.com/pdf/datasheet/ncv7356-d.pdf for data sheet.</details>
 If we add a resistor to the IO pin to limit the current in case of short to ground(or to v++ if using pull-up) we could then use the voltage on the bus pin to check for unit id duplicating at the time of the first user event.
 
-## Bus line hardware, protection. pull-up values etc.
+## Bus line hardware, protection. pull-up values etc
 
 * [ ] TODO: For testing I will use a 220 ohm resistor on the IO pin so any code error will not kill the chips as this should limit the current to 23mA.
 * [ ] TODO: for testing the pull-up wil be the MCUs internal pull-up.

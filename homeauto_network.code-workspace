@@ -11,8 +11,10 @@
 		"cSpell.words": [
 			"Arjen",
 			"buildflag",
+			"Lentz",
 			"SWITCHCAPVCC",
-			"WDTO"
+			"WDTO",
+			"xxyyyyy"
 		],
 		"files.associations": {
 			"algorithm": "cpp",
@@ -25,6 +27,7 @@
 		"docwriter.style": "Auto-detect",
 		"docwriter.progress.trackFunctions": true,
 		"docwriter.progress.trackClasses": true,
-		"docwriter.progress.trackTypes": true
+		"docwriter.progress.trackTypes": true,
+		"docwriter.hotkey.mac": "⌘ + ."
 	}
 }

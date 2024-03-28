@@ -30,11 +30,11 @@ public:
     byte send(byte command, byte date);
 
     /* While for sending we can send the message and wait for it to be send without to much problems. At least if there is
-     * not to much line contenchon and we are not in to much of a rush to do other stuff.
+     * not to much line contention and we are not in to much of a rush to do other stuff.
      *
      * But for receiving just sitting and monitoring the line and blocking everything else will likely be a problem so we need a few more
      * options:
-     * 1: If our main loop is fastenough to catch any message while it is still on the
+     * 1: If our main loop is fast enough to catch any message while it is still on the
      */
 
     byte receiveMonitor();

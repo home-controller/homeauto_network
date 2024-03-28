@@ -1,0 +1,6 @@
+BasedOnStyle: Google
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+EmptyLineBeforeAccessModifier: LogicalBlock
+IncludeBlocks: Merge
+ReflowComments: true
+ColumnLimit: 175
