@@ -166,7 +166,7 @@ byte SlowHomeNet::send(byte command, byte data) {
         crc = Crc4(&crc, 1);
       }
       crc = sendBits(crc, 4);
-      if (crc == 0) {                             // next send CRC delimiter
+      if (crc == 0) {                           // next send CRC delimiter
         if (sendBits(1, 4) != 0) { return 1; }  // not sure about flagging this as a line error as this is just a delimiter.
         if (sendBits(1, 4) != 0) {              // Not success for sending 1 means Ack from other unit.
           // successfully sent and received Ack.
@@ -175,7 +175,7 @@ byte SlowHomeNet::send(byte command, byte data) {
           // No Ack
           return 16;  // warn 16 = no Ack. No other uint handed the message.
         }
-      } else {       /* error as the crc should be right even if 2 or more units are sending the same message */
+      } else {     /* error as the crc should be right even if 2 or more units are sending the same message */
         return 1;  // error 1 = line error.
       }
     } else {
@@ -202,7 +202,7 @@ boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
   if (level > 1) level = digitalRead(networkPin);
   for (x = 1; x <= 8 * pulses; x++) {
     if (digitalRead(networkPin) != level) {  // if line level changed for to checks in a row return true. This is to allow for nosy line spikes.
-                                                 // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
+                                             // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
       if (c > 0) return true;
       c++;
     } else {
@@ -210,7 +210,7 @@ boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
     }
     delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);  // Shift left 3 is same as divide by 8.(each shift left divides by 2)
     // We should really work out how many clock cycles are used in the loop [DigitalReadTime] and sub that from the delay to be accurate.
-        // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
+    // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
   }
   return false;
 }
@@ -252,10 +252,10 @@ byte SlowHomeNet::readBits(byte bits) {
   level = digitalRead(networkPin);  // this always needs to be LOW or HIGH i.e. 1 or 0 as it it used with 'bitor' to set the last bit.
   if (bits > 8) bits = 8;
   out = 0;
-  for (bitCount = 1; bitCount <= bits; bitCount++) {// loop through the bits given by 'bits'
-    c = 0;// count of high pulse in middle of bit pulse
-    cc = 0;//Count of level opposite of expected towards the end of the bit.
-    for (x = 1; x <= 8; x++) {// split each it into 8 check the levels.
+  for (bitCount = 1; bitCount <= bits; bitCount++) {  // loop through the bits given by 'bits'
+    c = 0;                                            // count of high pulse in middle of bit pulse
+    cc = 0;                                           // Count of level opposite of expected towards the end of the bit.
+    for (x = 1; x <= 8; x++) {                        // split each it into 8 check the levels.
 #ifdef UnitTest
       inBitPos = x;
 #endif
@@ -265,8 +265,8 @@ byte SlowHomeNet::readBits(byte bits) {
         if (levelC == HIGH) c++;
       }
       if ((x >= 6)) {  // If last part of pulse has changed then 'continue' on to next bit.
-                             // This should correct slightly off timings.
-                             // 6 would return upto 2 check faster?(1/4 of pulse length) but as if more (up 2 8) bits are the same level it is a lot less.
+                       // This should correct slightly off timings.
+                       // 6 would return upto 2 check faster?(1/4 of pulse length) but as if more (up 2 8) bits are the same level it is a lot less.
         if ((levelC != level)) {
           cc++;
           if ((cc >= 2)) { continue; }  // allow for a transient line spike.
@@ -274,14 +274,13 @@ byte SlowHomeNet::readBits(byte bits) {
           cc = 0;
         }
       }
-      delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime); // 11 12 13 15
+      delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);  // 11 12 13 15
       // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
       // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
-            // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
+      // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
     }
     if (c >= 3) level = HIGH;  // pulse is split into 8 and 3 out of the middle 4 checks are HIGH
-    else
-            level = LOW;
+    else level = LOW;
     out = ((out << 1) bitor level);
     level = levelC;  // if (levelC != level) level = levelC;
   }
@@ -353,9 +352,7 @@ byte SlowHomeNet::readBits(byte bits) {
  */
 byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
   byte bufSI, line, r, RTR, dataLength, crc, ack, tl;
-  do {
-    line = readBits(1);
-  } while ((line == 1) /*  check for time out */);  // While line is pulled high. i.e. no network activity.
+  do { line = readBits(1); } while ((line == 1) /*  check for time out */);  // While line is pulled high. i.e. no network activity.
   bufSI = buf.nextIndex();
   tl = buf.getLength();
   r = readBits(8);
@@ -398,9 +395,7 @@ void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
   CurrentTime = micros();  // not sure if should try and use the registers strait?
   t = CurrentTime - lastTime;
   // If time since last called less then 1/2 pulse time ignore call
-  if (t < (bitPulseLength >> 1)) {
-    return;
-  }
+  if (t < (bitPulseLength >> 1)) { return; }
   t = CurrentTime - lastTime;
   lastTime = CurrentTime;
   mod_t = t & 0x7ff;  //= 11 bit mask (0x7ff = 2048 - 1 = 2^11 - 1 = 0b11111111111)
@@ -461,7 +456,7 @@ void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
 static const uint8_t PROGMEM dscrc2x16_table[] = {
     0x00, 0x5E, 0xBC, 0xE2, 0x61, 0x3F, 0xDD, 0x83,
     0xC2, 0x9C, 0x7E, 0x20, 0xA3, 0xFD, 0x1F, 0x41,
-                                                  0x00, 0x9D, 0x23, 0xBE, 0x46, 0xDB, 0x65, 0xF8,
+    0x00, 0x9D, 0x23, 0xBE, 0x46, 0xDB, 0x65, 0xF8,
     0x8C, 0x11, 0xAF, 0x32, 0xCA, 0x57, 0xE9, 0x74};
 
 // Compute a Dallas Semiconductor 8 bit CRC. These show up in the ROM
@@ -506,7 +501,7 @@ byte SlowHomeNet::Crc4buf(uint8_t i) {
   if (l == 3) l = 4;  //[0,8,16,32] bits
   l++;                // command id byte.
   i = buf.bufIndex(i + 1);
-  if (i + (l - 1) >= buf.maxLen()) {                     // if buf wraps around from the end to the back to the beginning.
+  if (i + (l - 1) >= buf.maxLen()) {                   // if buf wraps around from the end to the back to the beginning.
     crc = OneWireCrc8(buf.bufP(i), buf.maxLen() - i);  // 8-7=1 or 8-5=3 with l=2
     crc = OneWireCrc8(buf.bufP(0), l - (buf.maxLen() - i), crc);
   } else {

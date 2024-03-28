@@ -4,3 +4,4 @@ EmptyLineBeforeAccessModifier: LogicalBlock
 IncludeBlocks: Merge
 ReflowComments: true
 ColumnLimit: 175
+AllowShortBlocksOnASingleLine: Always
