@@ -6,3 +6,5 @@
 *.vscode/extensions*
 *~
 get-platformio.py
+doc/
+Doxyfile.bak

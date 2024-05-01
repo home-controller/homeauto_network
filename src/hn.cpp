@@ -92,17 +92,15 @@ byte SlowHomeNet::sendBits(byte bits, byte numberOfBits) {
 }
 
 /**
- * @brief  The function `checkPinInput` checks if a pin is set as an input or
+ * @brief  Checks if a pin is set as an input or
  * output.
  *
  * @return A boolean value that indicates whether the pin
- * is set as an input or not. It checks if the pin's corresponding bit in the
+ * is set as an input or not. Returns true(= 1) if pin is set to input. It checks if the pin's corresponding bit in the
  * pin data direction register (`pin_DDR_reg`) is clear (equal to 0), which
  * means the pin is set as an input.
  */
-boolean SlowHomeNet::checkPinInput() {
-  return ((*pin_DDR_reg & pin_bit_msk) == 0);  // set(=1) bit is output.
-}
+boolean SlowHomeNet::checkPinInput() { return ((*pin_DDR_reg & pin_bit_msk) == 0); }  ///< If bit = 0 then pin is input.
 
 byte SlowHomeNet::pin() { return networkPin; }
 // void SlowHomeNet::pin(byte p) {
@@ -110,13 +108,15 @@ byte SlowHomeNet::pin() { return networkPin; }
 // }
 
 /**
- * @brief For sending data packets over a network, handling various scenarios
- * such as data transmission, CRC calculation, and network availability.
+ * @brief For sending message id and data packets over a network
+ * @details handling various scenarios such as data transmission, CRC calculation, and network availability.
  *
  * @param command A byte Representing the command byte(or message Id) that you
- * want to send over the network. It specifies the type of command or operation
+ * want to send over the network.
+ * @details It specifies the type of command or operation
  * you want to perform. This command byte is used to communicate instructions
  * or actions between different units on the network
+ *
  * @param data Represents the byte of data that you want to send along with the
  * command. This byte of data will be transmitted over the network along with
  * the command byte.
@@ -322,7 +322,8 @@ byte SlowHomeNet::readBits(byte bits) {
 //                 c = x bitand 0b111;                     // c = remainder of x div 8
 //                 if (c > ((bitPulseLength >> 1) + 2)) {  // if remainder > (bitPulseLength / 2).
 //                                                         // The +2 is for the extra wait for line spike check and maybe the same for the last call
-//                                                         // and shouldn't hurt as a pulse should be more than 1/2 length anyway. Although not sure about the need to check at all.
+//                                                         // and shouldn't hurt as a pulse should be more than 1/2 length anyway. Although not sure about the need to check
+//                                                         at all.
 //                     c = x >> 3 + 1;                     // c= x div 8 + 1
 //                 } else {
 //                     c = x >> 3;  // c = x div 8
@@ -453,11 +454,8 @@ void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
 // Dow-CRC using polynomial X^8 + X^5 + X^4 + X^0
 // Tiny 2x16 entry CRC table created by Arjen Lentz
 // See http://lentz.com.au/blog/calculating-crc-with-a-tiny-32-entry-lookup-table
-static const uint8_t PROGMEM dscrc2x16_table[] = {
-    0x00, 0x5E, 0xBC, 0xE2, 0x61, 0x3F, 0xDD, 0x83,
-    0xC2, 0x9C, 0x7E, 0x20, 0xA3, 0xFD, 0x1F, 0x41,
-    0x00, 0x9D, 0x23, 0xBE, 0x46, 0xDB, 0x65, 0xF8,
-    0x8C, 0x11, 0xAF, 0x32, 0xCA, 0x57, 0xE9, 0x74};
+static const uint8_t PROGMEM dscrc2x16_table[] = {0x00, 0x5E, 0xBC, 0xE2, 0x61, 0x3F, 0xDD, 0x83, 0xC2, 0x9C, 0x7E, 0x20, 0xA3, 0xFD, 0x1F, 0x41,
+                                                  0x00, 0x9D, 0x23, 0xBE, 0x46, 0xDB, 0x65, 0xF8, 0x8C, 0x11, 0xAF, 0x32, 0xCA, 0x57, 0xE9, 0x74};
 
 // Compute a Dallas Semiconductor 8 bit CRC. These show up in the ROM
 // and the registers.  (Use tiny 2x16 entry CRC table)

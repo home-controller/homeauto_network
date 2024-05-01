@@ -86,12 +86,12 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 
 At a speed of 1 MBit/s, a maximum cable length of about 40 meters (130 ft.) can be used. This is because the arbitration scheme requires that the wave front of the signal be able to propagate to the most remote node and back again before the bit is sampled. In other words, the cable length is restricted by the speed of light. A proposal to increase the speed of light has been considered but was turned down because of its inter-galactic consequences.
 
-Other maximum cable lengths are (these values are approximate):
+### Other maximum cable lengths are (these values are approximate)
 
-   100 meters (330 ft) at 500 kBit/s
-   200 meters (650 ft) at 250 kBit/s
-   500 meters (1600 ft) at 125 kBit/s
-   6 kilometers (20000 ft) at 10 kBit/s
+* 100 meters (330 ft) at 500 kBit/s
+* 200 meters (650 ft) at 250 kBit/s
+* 500 meters (1600 ft) at 125 kBit/s
+* 6 kilometers (20000 ft) at 10 kBit/s
 
 If opto-couplers are used to provide galvanic isolation, the maximum bus length is decreased accordingly. Hint: use fast opto-couplers, and look at the delay through the device, not at the specified maximum bit rate.
 </details>
