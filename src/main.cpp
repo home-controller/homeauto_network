@@ -25,7 +25,9 @@
  */
 
 #include <EEPROM.h>
-#include <defs.h>  // #include "../../libraries/defs/src/defs.h"
+//#include "defs.h"
+#include <defs.h>
+//#include "../../libraries/defs/src/defs.h"
 #include <gpioSwitchInput.h>
 #include "hn.h"
 /* Including the watchdog timer header file. */
