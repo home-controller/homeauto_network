@@ -37,10 +37,12 @@ SlowHomeNet::SlowHomeNet(byte pin) {
           INPUT_PULLUP);  // should add some external resistor to make stronger pullup. be safer to use 2 pins and pull down through a transistor, easy to replace if you shore
                           // the line high. Would one of the solid state fuses be fast enough to save the pin?
   pin_bit_msk = digitalPinToBitMask(pin);
-  pin_port = digitalPinToPort(pin);  // PORTB;
-  pin_DDR_reg = portModeRegister(
-      pin_port);  // port to the address of DDRx. The DDR(Data Direction Register)s are registers which determine if the digital pin is output mode or input mode.
+  pin_port = digitalPinToPort(pin);            // PORTB;
+  pin_DDR_reg = portModeRegister(pin_port);    // port to the address of DDRx. The DDR(Data Direction Register)s are registers which
+                                               // determine if the digital pin is output mode or input mode.
   port_IO_reg = portOutputRegister(pin_port);  // PORTB, PORTC, PORTD etc. registers for bi-directional I/O
+  CurrentTime = micros();
+  lastTime = CurrentTime - bitPulseLength;
 }
 
 void SlowHomeNet::exc() {
@@ -198,7 +200,7 @@ byte SlowHomeNet::send(byte command, byte data) {
  * pulse length this gives any ringing time to settle.
  */
 boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
-  byte x, c;
+  byte x, c = 8;
   if (level > 1) level = digitalRead(networkPin);
   for (x = 1; x <= 8 * pulses; x++) {
     if (digitalRead(networkPin) != level) {  // if line level changed for to checks in a row return true. This is to allow for nosy line spikes.

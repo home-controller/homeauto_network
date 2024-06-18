@@ -132,7 +132,7 @@ void setup() {
     }
     Serial.println();
     Serial.println(F("Serial connected"));
-    Serial.println(F("program version: " STRINGIFY(VERSION)));
+    Serial.println(F("program version: " STRINGIFY(VERSION))); // VERSION is build flag in platformio.ini
     Serial.print(F("Board type: "));
     Serial.println(F(board_name));
 

@@ -23,7 +23,7 @@
 class SlowHomeNet {
  public:
   void attachIntToPin(byte pin);
-  SlowHomeNet(byte pin);  // class setup procedure, auto called
+  explicit SlowHomeNet(byte pin);  // class setup procedure, auto called
   void exc();             // Need to call each time though the main loop.
   byte send(byte command, byte date);
 
