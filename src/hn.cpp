@@ -47,9 +47,11 @@ SlowHomeNet::SlowHomeNet(byte pin) {
 
 void SlowHomeNet::exc() {
   // Todo / This could either handle stuff stored from the pin change
-  // interrupt . Todo / Or if the first pull low pulse is long enough this
+  // interrupt .
+  // Todo: / Or if the first pull low pulse is long enough this
   // could read the incoming message. When resend is reliable could even wait
-  // for next send if busy. Todo / Or if you know you are going to be busy you
+  // for next send if busy.
+  // Todo / Or if you know you are going to be busy you
   // could pull the line low :P to use this without interrupts would probably
   // have to increase the time of start pulse bit length.
 }
@@ -119,9 +121,8 @@ byte SlowHomeNet::pin() { return networkPin; }
  * you want to perform. This command byte is used to communicate instructions
  * or actions between different units on the network
  *
- * @param data Represents the byte of data that you want to send along with the
- * command. This byte of data will be transmitted over the network along with
- * the command byte.
+ * @param data if = 0 no date frame is sent, else data is sent in a 1 byte date frame.
+ * Currently only handles 0 or 1 byte of data, todo handle 2 and 4 bytes.
  *
  * @return The function `SlowHomeNet::send` returns different values based on
  * the outcome of the communication process. Here are the possible return
@@ -196,7 +197,7 @@ byte SlowHomeNet::send(byte command, byte data) {
  *
  * @param pulses Number of bitPulseLength pulses of time to monitor the line for.
  * @return boolean return true if the line level changed else false.
- * @todo some can standards check the level of the pulse 87.5 percent along the
+ * @todo some CAN standards check the level of the pulse 87.5 percent along the
  * pulse length this gives any ringing time to settle.
  */
 boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
@@ -257,7 +258,7 @@ byte SlowHomeNet::readBits(byte bits) {
   for (bitCount = 1; bitCount <= bits; bitCount++) {  // loop through the bits given by 'bits'
     c = 0;                                            // count of high pulse in middle of bit pulse
     cc = 0;                                           // Count of level opposite of expected towards the end of the bit.
-    for (x = 1; x <= 8; x++) {                        // split each it into 8 check the levels.
+    for (x = 1; x <= 8; x++) {                        // split each pulse into 8 and check the levels.
 #ifdef UnitTest
       inBitPos = x;
 #endif
@@ -350,6 +351,7 @@ byte SlowHomeNet::readBits(byte bits) {
  * @details As this stays here until a message is received only good for
  * testing or if there are no other inputs from switches etc. Although I guess
  * there could be stuff on interrupts.
+ * The first byte in the buffer holds the data length and if RTR bit
  *
  * @return byte Returns 0 for success, Message is stored in the buffer.
  */
@@ -359,9 +361,22 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
   bufSI = buf.nextIndex();
   tl = buf.getLength();
   r = readBits(8);
-  RTR = readBits(1);
-  dataLength = readBits(2);
-  buf.push(((RTR bitand 0b1) << 2) bitor ((dataLength bitand 0b11)));
+  Serial.print(F("Id: "));
+  Serial.print(r);
+
+  RTR = readBits(1);  // RTR = Remote Transmission Request, 1 bit
+  Serial.print(F(", RTR: "));
+  Serial.print(RTR);
+  dataLength = readBits(2);  // number of bytes of data to expect. Key 0 = None, 1 = 1 byte, 2 = 2 bytes, 3 = 4 bytes
+  Serial.print(F(", Data len: "));
+  Serial.print(dataLength);
+  Serial.println();
+  if (dataLength > 2) {
+    dataLength = 1 << (dataLength - 1);  // if using 4 bits max bytes of data would be 63.
+                                         // Although you would need to add a bit to the date frame to go past 4 bytes
+                                         // the buffer size would also need to be increased a lot.
+  }
+  buf.push(((RTR bitand 0b1) << 7) bitor ((dataLength bitand 0b111111)));
   buf.push(r);
   if (dataLength >= 1) { buf.push(readBits(8)); }
   if (dataLength >= 2) { buf.push(readBits(8)); }
@@ -375,6 +390,8 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
     // We could acknowledge here? If we are going to handle this message
     // or maybe if the crc checks out if we decide to send back a message when we handle a command.
   } else {
+    Serial.println(F("Fail crc, removing from buffer.  "));
+    //Serial.print(dataLength);
     buf.setLength(tl);
   }
 

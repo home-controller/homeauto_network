@@ -22,9 +22,25 @@
 #define MaxInUseHigh
 class SlowHomeNet {
  public:
+ // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
   void attachIntToPin(byte pin);
+  byte pin();
   explicit SlowHomeNet(byte pin);  // class setup procedure, auto called
-  void exc();             // Need to call each time though the main loop.
+
+  //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
+  void exc();                      // Need to call each time though the main loop.
+  byte receiveMonitor();
+
+  /// @brief Get the number of bytes of received date stored in the receive buffer.
+  /// @return bytes in buffer.
+  byte recCount(){return buf.getLength();}
+
+  /// @brief Get the value in the queue i items back front the head of the queue. No range checking.
+  /// @param i if i = 0 then the first item at the head of the queue, else i bytes back from the head
+  /// @return byte of data from the buffer.
+  byte peek(byte i){return buf.peek(i);}
+
+  //+++++++++++++++++ Send ++++++++++++++++++++++++++++++++++++++++
   byte send(byte command, byte date);
 
   /* While for sending we can send the message and wait for it to be send without to much problems. At least if there is
@@ -34,9 +50,6 @@ class SlowHomeNet {
    * options:
    * 1: If our main loop is fast enough to catch any message while it is still on the
    */
-
-  byte receiveMonitor();
-  byte pin();
 
   // unit testing stuff
 #ifdef UnitTest

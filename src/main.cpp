@@ -25,9 +25,9 @@
  */
 
 #include <EEPROM.h>
-//#include "defs.h"
+// #include "defs.h"
 #include <defs.h>
-//#include "../../libraries/defs/src/defs.h"
+// #include "../../libraries/defs/src/defs.h"
 #include <gpioSwitchInput.h>
 #include "hn.h"
 /* Including the watchdog timer header file. */
@@ -132,7 +132,7 @@ void setup() {
     }
     Serial.println();
     Serial.println(F("Serial connected"));
-    Serial.println(F("program version: " STRINGIFY(VERSION))); // VERSION is build flag in platformio.ini
+    Serial.println(F("program version: " STRINGIFY(VERSION)));  // VERSION is build flag in platformio.ini
     Serial.print(F("Board type: "));
     Serial.println(F(board_name));
 
@@ -165,11 +165,11 @@ void setup() {
     // Since the buffer is initalized with an Adafruit splashscreen
     // internally, this will display the splashscreen.
     display.display();
-    delay(3000); // watchdog timer will reset the MCU if the delay is for to long.
+    delay(3000);  // watchdog timer will reset the MCU if the delay is for to long.
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SH110X_WHITE);
-    display.println("Beginning Network testing");
+    display.println("Start Network testing");
     display.display();
 #endif
 
@@ -193,42 +193,71 @@ void setup() {
  * switches, executes the network, and checks for a message
  */
 void loop() {
-#ifdef receive_buildflag
-    byte r;
+#ifdef send_buildflag
+  static unsigned long sendCTime = millis();
+  static unsigned long sendLastTime = sendCTime - 10000;
 #endif
-    static byte c = 0;
-    wdt_reset();
-    gpioIn.SwitchesExe();  // Func is debounced
-    hNet.exc();
 #ifdef receive_buildflag
-    /// really need to
-    wdt_disable();
-    r = hNet.receiveMonitor(); // the chip will reset when the watch dog timer expires.
-    wdt_enable(WDTO_8S);
-    if (r == 0) {
-      Serial.print(F("Message received, r = "));
-      Serial.println(r);
-    } else {
-      Serial.print(F("Error receiving message, r = "));
-      Serial.println(r);
+  byte r;
+#endif
+  static byte c = 0;
+  wdt_reset();
+  gpioIn.SwitchesExe();  // Func is debounced
+  hNet.exc();
+#ifdef receive_buildflag
+  /// really need to
+  wdt_disable();
+  r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
+  wdt_enable(WDTO_8S);
+  if (r == 0) {
+    Serial.print(F("Message received with no error "));
+    Serial.print(r);
+    Serial.print(F(", buffer len: "));
+    Serial.print(hNet.recCount());
+    Serial.print(F(", data bytes: "));
+    byte dataBits = hNet.peek(0) bitand 0b1111;
+    Serial.print(dataBits);
+    Serial.print(F(", Remote Transmission Request: "));
+    Serial.print(hNet.peek(0) >> 7);
+    byte lc = 1;
+    while ((dataBits >= lc) and (hNet.recCount() >= (dataBits + 1))) {
+      Serial.print(F(", data ["));
+      Serial.print(lc);
+      Serial.print(F("] = "));
+      Serial.print(hNet.peek(lc));
+      Serial.println();
+      lc++;
     }
+    Serial.println();
+  } else {
+    Serial.print(F("Error receiving message, r = "));
+    Serial.println(r);
+  }
 #endif
 #ifdef send_buildflag
-
+  sendCTime = millis();
+  if ((sendCTime - sendLastTime) >= 15000) {
+    static byte sc = 0;
+    sendLastTime = sendCTime;
+    hNet.send(1, 7);
+    Serial.print(F("Message sent "));
+    Serial.print(sc);
+    Serial.println();
+  }
 #endif
 
-    loopCount++;
+  loopCount++;
 
-    if (loopCount >= 50000 and (c <= 5)) {  // maxsize of a word is 65535 so if over that will never pass
-      loopCount = 0;
-      Serial.print(F("Count: "));
-      Serial.print(c);
-      Serial.print(F(", Time for 50,000 loops through the main loop: "));
-      Serial.print(micros() - loopTimer);
-      Serial.print(F("µs / 488 Enough time to check each bit "));
-      Serial.print((micros() - loopTimer) / 488);
-      Serial.println(F(" times."));
-      loopTimer = micros();
-      c++;
-    }
+  if (loopCount >= 5000 and (c <= 5)) {  // maxsize of a word is 65535 so if over that will never pass
+    loopCount = 0;
+    Serial.print(F("Count: "));
+    Serial.print(c);
+    Serial.print(F(", Time for 5,000 loops through the main loop: "));
+    Serial.print(micros() - loopTimer);
+    Serial.print(F("µs / 488 Enough time to check each bit "));
+    Serial.print((micros() - loopTimer) / 488);
+    Serial.println(F(" times."));
+    loopTimer = micros();
+    c++;
+  }
 }

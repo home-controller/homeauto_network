@@ -20,14 +20,14 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 
-2. bits[1 Maybe more] A pull down pulse to say I am about to start sending.
+2. bits[1 Maybe more] A pull down pulse to say I am about to start sending. Be a good idea to add a var for number of bits here, to make checking each time through main loop more reliable.
 3. bits[8] command id. Maybe this should be moved down 2 rows?
 4. bit3[1] RTR (Remote Transmission Request).
 4.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
 should we add a bit to set when we are sending the message back to say we handled it here.
 
-5. bits[2] data length in bytes 0=0,1=1,2=2,3=4
-6. bits[0,8,16,32] bits Then optional 8,16 or 32 bits of data.
+5. bits[2] data length in bytes 0=0,1=1,2=2,3=4. Should this be 3 bits?
+6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
 7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
 8. bits[1]: CRC delimiter. Delimiter is high.
 9. bits[1] Ack bit. With CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
@@ -36,9 +36,9 @@ should we add a bit to set when we are sending the message back to say we handle
 
 ```fixed width text
 |S|mmmmmmmm|R|ccc|ddddddd16ddddddd|CCCC|D|A|D|eeeeeee|
-|1| 8bits  |?| 3 |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits
-|0|????????|?|???|????????????????|????|1|?|1|1111111| the bits value
-max 42 bits high? 
+|1| 8bits  |?| 3 |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits.
+|0|????????|?|???|????????????????|????|1|?|1|1111111| the bits value.
+Max 42 bits high? 
 
 How did I get that? for data R is low so after that:
 3(data length)+32(data)+4(CRC maybe with the right value of id(can't be bothered working it out))
