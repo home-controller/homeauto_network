@@ -26,7 +26,7 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 4.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
 should we add a bit to set when we are sending the message back to say we handled it here.
 
-5. bits[2] data length in bytes 0=0,1=1,2=2,3=4. Should this be 3 bits?
+5. bits[3] TODO still 2 bits in code. should move to front? data length in bytes 0=0,1=1,2=2,3=4. Should this be 3 bits?
 6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
 7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
 8. bits[1]: CRC delimiter. Delimiter is high.

@@ -88,10 +88,10 @@ byte SlowHomeNet::sendBits(byte bits, byte numberOfBits) {
     } else {
       pinMode(networkPin, OUTPUT);
       digitalWrite(networkPin, LOW);
-      delayMicroseconds((bitPulseLength >> 2) - DigitalWriteTime);
+      delayMicroseconds(bitPulseLength - DigitalWriteTime);
     }
   }
-  if (!checkPinInput()) pinMode(networkPin, INPUT_PULLUP);
+  // if (!checkPinInput()) pinMode(networkPin, INPUT_PULLUP);
   return 0;
 }
 
@@ -148,7 +148,7 @@ byte SlowHomeNet::send(byte command, byte data) {
             crcBuf[1] = data;
             crc = Crc4(crcBuf, 2);
           } else {  // bus contention at data bit dataSent
-            // read remainder of message
+            // Todo read remainder of message
             if (buf.space() < 3) return 3;
             buf.push(0b001);  // command with 1 byte of data. If it
             // was more we would of had priority.
@@ -190,18 +190,21 @@ byte SlowHomeNet::send(byte command, byte data) {
     return 18;  // warn: network busy or down.
   }
   return byte();
+  // always going to end with pin on input so this not needed?
+  // if (!checkPinInput()) pinMode(networkPin, INPUT_PULLUP);
 }
 
 /**
  * @brief monitor if line changes level in the time of "pulses * bitPulseLength".
  *
  * @param pulses Number of bitPulseLength pulses of time to monitor the line for.
+ * @param level
  * @return boolean return true if the line level changed else false.
  * @todo some CAN standards check the level of the pulse 87.5 percent along the
  * pulse length this gives any ringing time to settle.
  */
-boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
-  byte x, c = 8;
+boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level = 1) {
+  byte x, c = 0;
   if (level > 1) level = digitalRead(networkPin);
   for (x = 1; x <= 8 * pulses; x++) {
     if (digitalRead(networkPin) != level) {  // if line level changed for to checks in a row return true. This is to allow for nosy line spikes.
@@ -219,7 +222,7 @@ boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level) {
 }
 
 /**
- * @brief Check network IO pin and send first line pulse.
+ * @brief Check network IO pin and send first line pulse. If success the pin will be left pulled LOW.
  *
  * @details Checks if the pin is high for the 'maxInuseHigh' time and if not
  * waits for upto "WaitForLineTimeout" for in to become free. if the line
@@ -233,8 +236,8 @@ boolean SlowHomeNet::getNetwork() {
   do {
     if (monitorLinePinForChange(maxInuseHigh + 1, 1) == false) {
       digitalWrite(networkPin, LOW);
-      delayMicroseconds((bitPulseLength >> 2) - DigitalWriteTime);
-      pinMode(networkPin, INPUT_PULLUP);
+      delayMicroseconds(bitPulseLength - DigitalWriteTime);
+      // pinMode(networkPin, INPUT_PULLUP); // why did I ever add this?
       return true;
     }
   } while ((millis() - timeOutStart) < WaitForLineTimeout);
@@ -391,7 +394,7 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
     // or maybe if the crc checks out if we decide to send back a message when we handle a command.
   } else {
     Serial.println(F("Fail crc, removing from buffer.  "));
-    //Serial.print(dataLength);
+    // Serial.print(dataLength);
     buf.setLength(tl);
   }
 

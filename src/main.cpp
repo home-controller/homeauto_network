@@ -137,8 +137,8 @@ void setup() {
     Serial.println(F(board_name));
 
     wdt_enable(WDTO_8S);
-
-    Serial.println(F("No internal pullup mode for A6 & A7"));
+    if ((Nano_board == board_type) or (Uno_board == board_type)) { Serial.println(F("No internal pullup mode for A6 & A7")); }
+    if (Pro_Micro_board == board_type) { Serial.println(F("Pro Micro has missing pins including AREF, A4, A5, SS, 11, 12, and 13.")); }
 #if defined gpioDebugSetup
     Serial.println(F("Debug flag \"gpioDebugSetup\" set"));
 #endif
@@ -193,10 +193,17 @@ void setup() {
  * switches, executes the network, and checks for a message
  */
 void loop() {
-#ifdef send_buildflag
   static unsigned long sendCTime = millis();
   static unsigned long sendLastTime = sendCTime - 10000;
-#endif
+  static boolean oneTime = false;
+  if (!oneTime) {
+    Serial.print(F("Pin number = "));
+    Serial.println(hNet.getNetworkPin());
+    oneTime = true;
+    Serial.print(F("Pin state = "));
+    if (digitalRead(hNet.getNetworkPin())== LOW) Serial.println("LOW");
+    else Serial.println("HIGH");
+  }
 #ifdef receive_buildflag
   byte r;
 #endif
@@ -207,7 +214,52 @@ void loop() {
 #ifdef receive_buildflag
   /// really need to
   wdt_disable();
-  r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
+  // debug loop
+  byte a_l;  // pin changes stored.
+  unsigned long
+      a[20];  // for storing pin changes in millis for for the message. although the is a max of 59bit some are always at a set value and only use 2 date bytes max for now.
+  byte a2[20];
+  boolean pinLevel, lastLev;
+  // Serial.print('.');
+  byte p = hNet.getNetworkPin();
+  pinLevel = digitalRead(p);
+  if (pinLevel == LOW) {
+    lastLev = LOW;
+    a_l = 0;
+    sendCTime = micros();
+    sendLastTime = sendCTime;
+    unsigned long fistTime;
+    fistTime = sendCTime;
+    while ((sendCTime - fistTime) < 1000000)  // Check for about 1 second.
+    {
+      pinLevel = digitalRead(p);
+      if (lastLev != pinLevel) {
+        if (a_l <= 20) {
+          a[a_l] = sendCTime - sendLastTime;
+          a2[a_l] = lastLev;
+          sendLastTime = sendCTime;
+        }
+        lastLev = pinLevel;
+        if (a_l < 255) a_l++;
+      }
+      sendCTime = micros();
+    }
+    Serial.print(F("Pin toggled between low/high "));
+    Serial.print(a_l + 1);
+    Serial.println(F(" times"));
+    if (a_l >= 1) {
+      Serial.print(F("The first pull LOW pulse lasted approx "));
+      Serial.print(a[0]);
+      Serial.print(F(" microseconds, Microseconds for subsequent changes: "));
+      byte i;
+      for (i = 1; ((i <= a_l) and (i < 20)); i++) {
+        if (i > 1) Serial.print(", ");
+        Serial.print(a[i]);
+      }
+      Serial.println();
+    }
+  }
+  /* r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
   wdt_enable(WDTO_8S);
   if (r == 0) {
     Serial.print(F("Message received with no error "));
@@ -232,7 +284,7 @@ void loop() {
   } else {
     Serial.print(F("Error receiving message, r = "));
     Serial.println(r);
-  }
+  } */
 #endif
 #ifdef send_buildflag
   sendCTime = millis();
@@ -250,12 +302,14 @@ void loop() {
 
   if (loopCount >= 5000 and (c <= 5)) {  // maxsize of a word is 65535 so if over that will never pass
     loopCount = 0;
+    if(c==0)Serial.println(F("Time per pulse is µs / 488(board rate, bits per second) = 1e6 / 488 = 2048µs per bit."));
     Serial.print(F("Count: "));
     Serial.print(c);
-    Serial.print(F(", Time for 5,000 loops through the main loop: "));
+    Serial.print(F(", "));
     Serial.print(micros() - loopTimer);
-    Serial.print(F("µs / 488 Enough time to check each bit "));
-    Serial.print((micros() - loopTimer) / 488);
+    Serial.print("µs.");
+    Serial.print(F(" for 5,000 loops through loop(): Time to check each bit "));
+    Serial.print((micros() - loopTimer) / 2048);
     Serial.println(F(" times."));
     loopTimer = micros();
     c++;

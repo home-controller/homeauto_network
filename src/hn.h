@@ -22,23 +22,24 @@
 #define MaxInUseHigh
 class SlowHomeNet {
  public:
- // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
+  // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
   void attachIntToPin(byte pin);
   byte pin();
   explicit SlowHomeNet(byte pin);  // class setup procedure, auto called
+  byte getNetworkPin() { return networkPin; }
 
   //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
-  void exc();                      // Need to call each time though the main loop.
+  void exc();  // Need to call each time though the main loop.
   byte receiveMonitor();
 
   /// @brief Get the number of bytes of received date stored in the receive buffer.
   /// @return bytes in buffer.
-  byte recCount(){return buf.getLength();}
+  byte recCount() { return buf.getLength(); }
 
   /// @brief Get the value in the queue i items back front the head of the queue. No range checking.
   /// @param i if i = 0 then the first item at the head of the queue, else i bytes back from the head
   /// @return byte of data from the buffer.
-  byte peek(byte i){return buf.peek(i);}
+  byte peek(byte i) { return buf.peek(i); }
 
   //+++++++++++++++++ Send ++++++++++++++++++++++++++++++++++++++++
   byte send(byte command, byte date);
@@ -82,18 +83,24 @@ class SlowHomeNet {
   // As lineSpeed is probably only used for the UI or people reading here it's accuracy probably don't matter much anyway.
 
   /*
-   * Max in use high is 9. 9 High data bits, Then parity would be low. Add 1/2 pulse for timing errors.
-   * Forgot you can have 8 1s then high parity then 9 x 1s for next data then 0 parity. Total of 18 high in a row if sending 2 bytes of data.
-   * As we are trying to go as slow as possible without making to noticeable a delay between turning the switch and the light coming on stick
-   * to sensing 1 byte at a time before dropping the line for maxInuseHigh + a bit to give others a chance.
+   * Gives max number of *miliseconds* the line can be high while in use and sending a message,
+   * With 4 bytes of date max is maybe 42 high bits, see readme. Just under a 10th of a second?
    * TODO Maybe do like CAN and add a bit of the opposite logic level after x bits of the same logic level then drop it at the other end.
    *      This guarantees a max line high or low while sending data without any worry about the bits being sent.
+   *      For example if 8 bit in a row are the same logic level then insert an opposite bit.
+   *      This can seem superfluous if the 9th bit would of changed anyway but we need to do it like this so the receiver can know to delete the bit.
    * before we have CAN style it is to painfully without a stop bit. Adding one pulse after the parity the opposite of it so we always get
    * our date without having to check, also makes error checking easier.
    */
-  word maxInuseHigh = (9 * bitPulseLength) + (bitPulseLength >> 2);  // Only true when sending only 1 byte of data. 9 x 488 + 488 >> 2 = 4514
-  word maxInuseLow = maxInuseHigh + bitPulseLength;  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
-  word WaitForLineTimeout = 400;                     // 4/10th of a second in millisecond (1e-3). different from above that are in microseconds (1e-6)
+  word maxInuseHigh =
+      ((42 * bitPulseLength) + (bitPulseLength >> 2)) / 1000 + 1;  // = 88 = (42 x 2048 + 2048 >> 1) /1000 + 1 = (86,016 + 1024)/1000 + 1 = 87,040 /1000 +1 = 88.04=88
+  // Only true when sending only 4 byte of data. 42 x 2048 + 2048 >> 1 = 87,041
+  // +1 to round up, as dividing by 1000 is unlikely to be a whole number and int math always rounds down.
+
+  // uint32_t maxInuseLow = maxInuseHigh + bitPulseLength;  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
+  word maxInuseLow = maxInuseHigh + bitPulseLength / 1000;  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
+  // byte size_of = sizeof(maxInuseLow);
+  word WaitForLineTimeout = 400;  // 4/10th of a second in millisecond (1e-3). different from more accurate timings that are in microseconds (1e-6)
 
   unsigned long lastTime;  // In micros. 1/million of a second
   volatile unsigned long CurrentTime;
