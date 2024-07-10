@@ -21,12 +21,11 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 
 2. bits[1 Maybe more] A pull down pulse to say I am about to start sending. Be a good idea to add a var for number of bits here, to make checking each time through main loop more reliable.
-3. bits[8] command id. Maybe this should be moved down 2 rows?
-4. bit3[1] RTR (Remote Transmission Request).
-4.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
+3. bits[1] RTR (Remote Transmission Request).
+3.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
 should we add a bit to set when we are sending the message back to say we handled it here.
-
-5. bits[3] TODO still 2 bits in code. should move to front? data length in bytes 0=0,1=1,2=2,3=4. Should this be 3 bits?
+4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
+5. bits[8] command id. Maybe this should be moved down 2 rows?
 6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
 7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
 8. bits[1]: CRC delimiter. Delimiter is high.
@@ -49,7 +48,7 @@ so:  3+32+4+1+1+1+7 = 49, or 42 not counting the 7 at end.
 So minimum number of bits for a message is 20 with no date and not waiting for end of frame.
 ```
 
-* [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(6 ?) of high or low bits instead of relying on parity bit.
+* [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
 
 * I think(should look it up) CAN have a max pull-down of 6 bits and anything more is used to set an error. So if one unit gets a CRC error it can use this to cancel the send and set an error thus keeping all units in sync.
 * Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.

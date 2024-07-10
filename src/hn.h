@@ -20,29 +20,36 @@
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
 #define MaxInUseHigh
+#define CRCError 
 class SlowHomeNet {
  public:
   // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
   void attachIntToPin(byte pin);
-  byte pin();
+  byte getPinNo();
   explicit SlowHomeNet(byte pin);  // class setup procedure, auto called
-  byte getNetworkPin() { return networkPin; }
 
   //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
   void exc();  // Need to call each time though the main loop.
   byte receiveMonitor();
+  byte receiveRest(byte bitPos);
 
   /// @brief Get the number of bytes of received date stored in the receive buffer.
   /// @return bytes in buffer.
   byte recCount() { return buf.getLength(); }
+  byte nextIndex() { return buf.nextIndex(); }
+
+  //+++++++++++++++++ Send ++++++++++++++++++++++++++++++++++++++++
+  byte send(byte command, byte date);
+
+  //+++++++++++++++++++++++++ Misc ++++++++++++++++++++++++++++++++++++
+
+  byte Crc4(uint8_t *addr, uint8_t len);
+  byte Crc4buf(uint8_t i);
 
   /// @brief Get the value in the queue i items back front the head of the queue. No range checking.
   /// @param i if i = 0 then the first item at the head of the queue, else i bytes back from the head
   /// @return byte of data from the buffer.
   byte peek(byte i) { return buf.peek(i); }
-
-  //+++++++++++++++++ Send ++++++++++++++++++++++++++++++++++++++++
-  byte send(byte command, byte date);
 
   /* While for sending we can send the message and wait for it to be send without to much problems. At least if there is
    * not to much line contention and we are not in to much of a rush to do other stuff.
@@ -104,9 +111,11 @@ class SlowHomeNet {
 
   unsigned long lastTime;  // In micros. 1/million of a second
   volatile unsigned long CurrentTime;
-  byte bitPos = 0;
-  byte dFlags = 0;         // parity bit is b00000001, ack is b00000010
-  byte overflowCount = 0;  // to many bits sent without ensuring line change at end of 11 bits
+
+  //byte bitPos = 0;                 /// @brief pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted.
+  byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
+  byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
+  byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
   byte lastState = 1;
 
   byte dataIn = 0;
@@ -134,10 +143,22 @@ class SlowHomeNet {
   byte readBits(byte bits);
 
   byte getPulseNo(byte pulses, byte level);
+  byte getDataLen(byte l);
+  byte getMessageLen(byte l);
+
+  byte pushDataLen(byte l, byte RTR = 0);
+  byte pushMessageId(byte m);
+
+  byte sendRTR(byte v);
+  byte sendDataLen(byte v);
+  byte sendMessageId(byte v);
+  byte sendData(byte v);
+  word sendData(word v);
+  byte sendCRC(byte v);
+  byte sendAck(byte v);
+  byte sendEndOfFrame();
 
   boolean getNetwork();
-  byte Crc4(uint8_t *addr, uint8_t len);
-  byte Crc4buf(uint8_t i);
   void IntCallback();  // Store 3 line change timings and discared any short enough to be bounce or a line spike. Although would this be a thing?
 };
 

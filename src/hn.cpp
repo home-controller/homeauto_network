@@ -106,10 +106,124 @@ byte SlowHomeNet::sendBits(byte bits, byte numberOfBits) {
  */
 boolean SlowHomeNet::checkPinInput() { return ((*pin_DDR_reg & pin_bit_msk) == 0); }  ///< If bit = 0 then pin is input.
 
-byte SlowHomeNet::pin() { return networkPin; }
+/// @return returns the pin this network is using.
+byte SlowHomeNet::getPinNo() { return networkPin; }
 // void SlowHomeNet::pin(byte p) {
 //     networkPin=p;
 // }
+
+/// @brief If there is room to store the whole message+date in the buffer, then setup some vars and push the number of bytes that will be stored in the buffer.
+/// Also stores the RTR in the high bit.
+/// @param l length code
+/// @param RTR If this is a Remote Transmission Request
+/// @return 0 for success or 3 if not enough room in buffer.
+byte SlowHomeNet::pushDataLen(byte l, byte RTR = 0) {
+  byte t;
+  t = getDataLen(l);  // t needs to be the number of bytes stored including the message id. the high bit will store the RTR bit.
+  t += getMessageLen(l);
+  if (buf.space() < (t + 1)) return 3;  // if there is not room to store all message plus, data plus, len byte then quit trying :)
+  if (RTR > 0) t |= (0b1 << 7);
+  bufIndexPartMessageAt = nextIndex();
+  buf.push(t);  // command with 1 byte of data. If it was more we would of had priority.
+  return 0;
+}
+
+/// @brief as pushDataLen() dose setup and checks for buffer room this just pushes the message.
+/// @param m message id.
+/// @return 0 for success.
+byte SlowHomeNet::pushMessageId(byte m) {
+  // byte t = sendBits(m, 8);
+
+  buf.push(t);  // command with 1 byte of data. If it was more we would of had priority.
+  return 0;
+}
+
+/// @brief Try to send the RTR bit. While following message priority.
+/// @param v the bit to send.
+/// @return If another unit has priority(sending 0 when we send 1) return their value else return v
+byte SlowHomeNet::sendRTR(byte v) {
+  // v = v bitand 0b1;
+  if (sendBits(v, 1) > 0) return 0;
+  else return v;
+}
+
+/// @brief Send the code for the length of data being sent.
+/// @param v The data length code.
+/// @return the code sent on the bus, not necessarily form this node.
+byte SlowHomeNet::sendDataLen(byte v) {
+  byte sb = sendBits(v, 3);
+  if (sb > 0) {
+    // As we lost out to a higher priority message we are in receiving mode now.
+    byte x = (1 << (3 - sb)) - 1;
+    v = v bitand x;
+    v = bitSet(v, 3 - sb);
+    byte r = readBits(3 - sb);
+    pushDataLen(r bitor v);
+    return (r bitor v);
+  } else {
+    return v;
+  }
+}
+
+byte SlowHomeNet::sendMessageId(byte v) {
+  // v = v bitand 0b1;
+  byte sb = sendBits(v, 8);
+  if (sb > 0) {
+    byte x = (1 << (8 - sb)) - 1;  // for example if dataSent = 2 this will give x = 0b00111111
+    v = v bitand x;
+    v = bitSet(v, 8 - sb);
+    byte r = readBits(8 - sb);
+    return (r bitor v);
+  } else return v;
+}
+
+byte SlowHomeNet::sendData(byte v) { return sendMessageId(v); }
+
+word SlowHomeNet::sendData(word v) {
+  byte b1 = sendMessageId(v);
+  if (b1 == highByte(v)) {
+    v = v bitand 0xFF00;
+    return (v + sendMessageId(v));
+  }
+  return ((((word)b1) << 8) + readBits(8));
+}
+
+/// @brief Send the CRC. If we get to to the point of sending the CRC it should only fail if there is a line error.
+/// @param v The CRC to send.
+/// @return The CRC sent on the bus, not necessarily form this node.
+byte SlowHomeNet::sendCRC(byte v) {  // this shouldn't fail as all the date is already sent. Also sends the CRC delimiter
+  // v = v bitand 0b1;
+  byte sb = sendBits(v, 4);
+  if (sb > 0) {                    // If this happens there is a line error or code bug.
+    byte x = (1 << (4 - sb)) - 1;  // for example if dataSent = 2 this will give x = 0b00111111
+    v = v bitand x;
+    v = bitSet(v, 4 - sb);
+    byte r = readBits(4 - sb);
+    sendBits(1, 1);
+    return (r bitor v);
+  } else {
+    sendBits(1, 1);
+    return v;
+  }
+}
+
+byte SlowHomeNet::sendAck(byte v) {
+  sendBits(v, 1);
+  sendBits(1, 1);
+}
+
+byte SlowHomeNet::sendEndOfFrame() {
+  byte sb = sendBits(0xFF, 7);
+  if (sb > 0) {
+    // TODO error code, not implemented yet.
+    // Not even sure if the error should be here or force the message to stop(by pulling low for 6 pulses) as soon as the error if found.
+    // error should probably be handled at a lower level as a frame error
+    byte x = (1 << (7 - sb)) - 1;
+    byte v = 0b1111111 bitand x;
+    v = bitSet(v, 7 - sb);
+    byte r = readBits(7 - sb);
+  }
+}
 
 /**
  * @brief For sending message id and data packets over a network
@@ -128,20 +242,62 @@ byte SlowHomeNet::pin() { return networkPin; }
  * the outcome of the communication process. Here are the possible return
  * values and their meanings: 0,  Successfully sent and received Ack. 1,  line
  * error. 16 = warn no Ack. No other uint handed the message. 17, Higher
- * priority message being sent. Maybe read it. 18, network busy or down.
+ * priority message being sent, received in buffer. 18, network busy or down. 19 unhandled data size.
  *
  */
 byte SlowHomeNet::send(byte command, byte data) {
-  byte sent, dataSent, crc;
+  byte sent, dataSent, crc, t, dataLenCode, dLen;
   byte crcBuf[2];
   if (getNetwork()) {
+    sent = sendRTR(0);  // this is high priority so no need to check.
+
+    // next handle data length
+    if (data == 0) dataLenCode = 0;
+    else dataLenCode = 1;
+    sent = sendDataLen(dataLenCode);
+    if (sent != data) {       // lost bus priority.
+      t = pushDataLen(sent);  // push RTR and message/data length.
+      if (t > 0) return t;
+      // Next fetch rest of message.
+      receiveRest(4);
+      return 17;  // Received message in buffer
+    }
+    // TODO handle date more than 1 byte. ATM it will always be 0 or 1 byte though.
+
+    // Send message byte(s?)
+    sent = sendMessageId(command);
+    if (sent != command) {
+      t = pushDataLen(dataLenCode);
+      if (t > 0) return t;
+      buf.push(sent);
+      receiveRest(4 + 8);
+      return 17;  // Received message in buffer
+    }
+
+    // Send data byte(s?)
+    sent = sendData(data);
+    if (sent != data) {
+      t = pushDataLen(dataLenCode);
+      if (t > 0) return t;
+      buf.push(command);
+      buf.push(sent);
+      receiveRest(4 + 8 + 8);
+      return 17;  // Received message in buffer
+    }
+
+    // send CRC
+    crcBuf[0] = command;
+    crcBuf[1] = data;
+    crc = Crc4(crcBuf, 2);
+    sent = sendCRC(crc);// if this fails we have a line error or bug in the code.
+    if (sent != crc) return 
+
     sent = sendBits(command, 8);
     if (sent == 0) {
-      sendBits(0, 1);  // Data Frame (RTR = 0) or a Remote-Request Frame
-      // (RTR = 1). send  control field
-      if (data > 0) {  // send 1 byte of data. control field = 0b01. no
-        // extended or res bits yet at least.
-        if (sendBits(0b01, 2) == 0) {  // send 1 byte of data.
+      sendBits(0, 1);             // Data Frame (RTR = 0) or a Remote-Request Frame RTR = 1.
+      sent = sendBits(0b001, 3);  // send 3 bit message and date length code. No extended or res bits yet at least.
+      if (sent == 0) {            // if no line contention.
+        if (data > 0) {           // send 1 byte of data. control field = 0b01. no
           dataSent = sendBits(data, 8);
           if (dataSent == 0) {  // byte of data sent
             crcBuf[0] = command;
@@ -150,23 +306,38 @@ byte SlowHomeNet::send(byte command, byte data) {
           } else {  // bus contention at data bit dataSent
             // Todo read remainder of message
             if (buf.space() < 3) return 3;
-            buf.push(0b001);  // command with 1 byte of data. If it
-            // was more we would of had priority.
+            bufIndexPartMessageAt = nextIndex();
+            buf.push(0b001);  // command with 1 byte of data. If it was more we would of had priority.
             buf.push(command);
+            if (dataSent == 1) buf.push(0b10000000);
+            else {
+              byte x = (1 << (8 - dataSent)) - 1;  // for example if dataSent = 2 this will give x = 0b00111111
+              data = data bitand x;
+              data = bitSet(data, 8 - dataSent);
+              buf.push(data);
+            }
             buf.push((data >> (8 - dataSent)) bitand (byte)(~0b1));
-            bitPos = 8 + 3 + dataSent;
+            bitPos = 8 + 4 + dataSent;
             return 17;  // Higher priority message being sent. Maybe read it.
           }
-        } else {
-          // another unit is sending command with no extra data.
+        } else {  // No date to send.
+
           if (buf.space() < 2) return 3;  // out of buff space for input.
-          buf.push(0b000);
+          buf.push(0b000);                // message with higher priority must have no data and not be a RTR or it wouldn be a lower value that our 0b0001
+                                          // although if we add handling for more date bytes we will need to change this.
           buf.push(command);
-          bitPos = 8 + 3;
-          return 17;  // Higher priority message being sent. Maybe read it.
+          bitPos = 8 + 4;  // bitPos is class private var.
+          return 17;       // Higher priority message being sent. Maybe read it.
         }
-      } else {
-        crc = Crc4(&crc, 1);
+      } else {  // sending (id and date) length code lost line priority. We must be sending 1(Todo account for more length codes) data byte and they are sending 0.
+                // another unit is sending command with no extra data.
+        if (buf.space() < 3) return 3;
+        crc = Crc4(&command, 1);
+        buf.push(0b000);  // command with 0 byte of data. If it was more we would of not lost priority.
+        buf.push(command);
+        buf.push(crc);
+        // this should be the whole message but
+        // TODO we still need to handle error checking and Ack
       }
       crc = sendBits(crc, 4);
       if (crc == 0) {                           // next send CRC delimiter
@@ -181,8 +352,9 @@ byte SlowHomeNet::send(byte command, byte data) {
       } else {     /* error as the crc should be right even if 2 or more units are sending the same message */
         return 1;  // error 1 = line error.
       }
-    } else {
+    } else {  // message id not sent as higher priority message being sent.
       // read rest of higher priority message other unit is sending.
+      return 17;
     }
   } else {
     // can't acquire network.
@@ -192,6 +364,71 @@ byte SlowHomeNet::send(byte command, byte data) {
   return byte();
   // always going to end with pin on input so this not needed?
   // if (!checkPinInput()) pinMode(networkPin, INPUT_PULLUP);
+}
+
+/**
+ * @brief receive message where another function left off, most likely a sending function that lost bus connection to a higher priority message.
+ * This is expecting that a message is already being sent on the bus so it will not wait for the start bit as it should already be sent
+ * Any bits stored in the buffer must already be shifted to the right place as this will just or the new bits in.
+ *
+ * have now changed the sending functions to read the the remaining part of the field so could stop with reading part fields and checking for buffer space
+ * as that is also checked in the sending func.
+ *
+ * @param pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted.
+ * @return byte
+ */
+byte SlowHomeNet::receiveRest(byte bitPos) {
+  byte bufSI, line, r, RTR, dataLength, crc, ack, tl, t, mdLen;
+  if (bitPos < 4) {  // get any remaining RTR and dataLength bits
+    r = readBits(4 - bitPos);
+    RTR = buf.getBufArrayElement(bufIndexPartMessageAt);
+    RTR = RTR bitor r;
+    mdLen = getDataLen(RTR);
+  }
+  if (bitPos < (4 + 8)) {  // get any remaining RTR and dataLength bits
+    r = readBits(8 - (bitPos - 4));
+    if (bitPos > 4) {
+      t = buf.getBufArrayElement(bufIndexPartMessageAt + 1);
+    } else {
+      if (buf.space() >= 1) {}
+    }
+    bufSI = buf.nextIndex();
+    tl = buf.getLength();
+    r = readBits(8);
+    Serial.print(F("Id: "));
+    Serial.print(r);
+
+    RTR = readBits(1);  // RTR = Remote Transmission Request, 1 bit
+    Serial.print(F(", RTR: "));
+    Serial.print(RTR);
+    dataLength = readBits(2);  // number of bytes of data to expect. Key 0 = None, 1 = 1 byte, 2 = 2 bytes, 3 = 4 bytes
+    Serial.print(F(", Data len: "));
+    Serial.print(dataLength);
+    Serial.println();
+    if (dataLength > 2) {
+      dataLength = 1 << (dataLength - 1);  // if using 4 bits max bytes of data would be 63.
+                                           // Although you would need to add a bit to the date frame to go past 4 bytes
+                                           // the buffer size would also need to be increased a lot.
+    }
+    buf.push(((RTR bitand 0b1) << 7) bitor ((dataLength bitand 0b111111)));
+    buf.push(r);
+    if (dataLength >= 1) { buf.push(readBits(8)); }
+    if (dataLength >= 2) { buf.push(readBits(8)); }
+    if (dataLength >= 3) {
+      buf.push(readBits(8));
+      buf.push(readBits(8));
+    }
+    crc = readBits(4);
+    readBits(1);  // CRC delimiter. Delimiter is high.
+    if (Crc4buf(bufSI) == crc) {
+      // We could acknowledge here? If we are going to handle this message
+      // or maybe if the crc checks out if we decide to send back a message when we handle a command.
+    } else {
+      Serial.println(F("Fail crc, removing from buffer.  "));
+      // Serial.print(dataLength);
+      buf.setLength(tl);
+    }
+  }
 }
 
 /**
@@ -242,6 +479,27 @@ boolean SlowHomeNet::getNetwork() {
     }
   } while ((millis() - timeOutStart) < WaitForLineTimeout);
   return false;
+}
+
+/// @brief Convert data length code to data length in bytes, this don't count the message id.
+/// @param l Length code
+/// @return Length in bytes, shift left 3 to get bits
+byte SlowHomeNet::getDataLen(byte l) {
+  l = l bitand 0b111;
+  if (l <= 2) return l;
+  if (l = 3) return 4;
+  // error undefined for code greater than 3, return max size.
+  return 4;
+}
+
+/// @brief Convert data length code to message id length in bytes, this don't count the data bytes.
+/// @param l Length code
+/// @return Length in bytes, shift left 3 to get bits. So far should alway be 1.
+byte SlowHomeNet::getMessageLen(byte l) {
+  if (l <= 3) return 1;
+
+  // error undefined for code greater than 3, return max size.
+  return 1;
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++ Reed/receive/ watch line/pin +++++++++++++++++++++++++++++++++
@@ -328,8 +586,8 @@ byte SlowHomeNet::readBits(byte bits) {
 //                 c = x bitand 0b111;                     // c = remainder of x div 8
 //                 if (c > ((bitPulseLength >> 1) + 2)) {  // if remainder > (bitPulseLength / 2).
 //                                                         // The +2 is for the extra wait for line spike check and maybe the same for the last call
-//                                                         // and shouldn't hurt as a pulse should be more than 1/2 length anyway. Although not sure about the need to check
-//                                                         at all.
+//                                                         // and shouldn't hurt as a pulse should be more than 1/2 length anyway. Although not sure about the need to
+//                                                         check at all.
 //                     c = x >> 3 + 1;                     // c= x div 8 + 1
 //                 } else {
 //                     c = x >> 3;  // c = x div 8

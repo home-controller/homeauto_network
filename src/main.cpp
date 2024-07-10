@@ -85,7 +85,7 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
   Serial.print(F(", state:"));
   Serial.println(state);
   Serial.print(F("Sending state on network(pin "));
-  Serial.print(hNet.pin());
+  Serial.print(hNet.getPinNo());
   Serial.println(").");
   hNet.send(state, 0);
 }
@@ -198,11 +198,15 @@ void loop() {
   static boolean oneTime = false;
   if (!oneTime) {
     Serial.print(F("Pin number = "));
-    Serial.println(hNet.getNetworkPin());
+    Serial.println(hNet.getPinNo());
     oneTime = true;
     Serial.print(F("Pin state = "));
-    if (digitalRead(hNet.getNetworkPin())== LOW) Serial.println("LOW");
+    if (digitalRead(hNet.getPinNo()) == LOW) Serial.println("LOW");
     else Serial.println("HIGH");
+    byte ta[2]{1, 7};
+    byte crc = hNet.Crc4(ta, 2);
+    Serial.print(F("CRC for [1,7] = "));
+    Serial.println(crc);
   }
 #ifdef receive_buildflag
   byte r;
@@ -221,7 +225,7 @@ void loop() {
   byte a2[20];
   boolean pinLevel, lastLev;
   // Serial.print('.');
-  byte p = hNet.getNetworkPin();
+  byte p = hNet.getPinNo();
   pinLevel = digitalRead(p);
   if (pinLevel == LOW) {
     lastLev = LOW;
@@ -302,7 +306,7 @@ void loop() {
 
   if (loopCount >= 5000 and (c <= 5)) {  // maxsize of a word is 65535 so if over that will never pass
     loopCount = 0;
-    if(c==0)Serial.println(F("Time per pulse is µs / 488(board rate, bits per second) = 1e6 / 488 = 2048µs per bit."));
+    if (c == 0) Serial.println(F("Time per pulse is µs / 488(board rate, bits per second) = 1e6 / 488 = 2048µs per bit."));
     Serial.print(F("Count: "));
     Serial.print(c);
     Serial.print(F(", "));
