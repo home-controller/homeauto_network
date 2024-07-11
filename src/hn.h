@@ -21,7 +21,12 @@
 
 #define MaxInUseHigh
 #define CRCError
-#define SOFBits 2         // SOF (Start of Frame) Bits.
+#define SOFBits 2  // The number of SOF (Start of Frame) bits.
+#if SOFBits > 1
+#define SOFValue 0b01  // if the number of bit is greater than 1 pull low for (SOFBits - 1) bits then 1 hight bit.
+#else
+#define SOFValue = 0  // else pull low for 1 bit.
+#endif
 #define maxDataSize 4     // the maximum data frame size in bytes, the is separate for the message frame.
 #define maxMessageSize 1  // The maximum massage size in bytes, TODO: can only be 1 at the min.
 
@@ -62,7 +67,7 @@ class SlowHomeNet {
   byte setDataArray(byte command, word data);
   byte setDataArray(byte command, uint32_t data, byte l);
   byte sendHelper(byte RTR, byte mLen, byte dLen);
-  byte send(byte command, byte data) { return sendHelper(0, 1, setDataArray(command, data)); };
+  byte send(byte command, byte data);
 
   //+++++++++++++++++++++++++ Misc ++++++++++++++++++++++++++++++++++++
 
@@ -99,6 +104,7 @@ class SlowHomeNet {
 #define _pinReg PIND              // read PIND for pins D0 to D7 states
 #define _pinMask 0b00000100;      // Mask for third pin in reg. i.e. on PIND mask for D2
 #define _hn_int_pin 2
+#define  DataLengthBitsLn 3
   byte networkPin;
   word bitPulseLength = 2048;  //  1 bit takes 2048 microseconds (~= 1e6 / lineSpeed;) (microsecond = 1 millionth of a second).
 
@@ -147,7 +153,7 @@ class SlowHomeNet {
   byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
   byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
   byte lastState = 1;
-  byte dataArray[maxDataSize + maxMessageSize];// beside using this to send different size messages and data, the CRC function wants it all in one array.
+  byte dataArray[maxDataSize + maxMessageSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
 
   byte dataIn = 0;
   /*

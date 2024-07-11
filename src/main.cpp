@@ -295,9 +295,10 @@ void loop() {
   if ((sendCTime - sendLastTime) >= 15000) {
     static byte sc = 0;
     sendLastTime = sendCTime;
-    hNet.send(1, 7);
+    sc = hNet.send(1, 7);
     Serial.print(F("Message sent "));
     Serial.print(sc);
+    if(sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
     Serial.println();
   }
 #endif

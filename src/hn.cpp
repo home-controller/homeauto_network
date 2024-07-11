@@ -143,15 +143,9 @@ byte SlowHomeNet::pushMessageId(byte m) {
 /// if not there is a problem with missing messages, SOF length mismatch between units or other hardware/software problems.
 byte SlowHomeNet::sendStartOfFrame() {
   byte r;
-  if (SOFBits > 1) {
-    r = sendBits(0b00000001, SOFBits);  // this shouldn't fail unless there are units compiled with a different SOF length.
-                                        // the 1 high bit should help with the timing if we are not sure when the pull low started.
-    if (r == 0) return 0b00000001;
-    else return 0;
-  } else {
-    sendBits(0, 1);
-    return 0;
-  }
+  r = sendBits(SOFValue, SOFBits);
+  if (r == 0) return SOFValue;
+  else return 0;  // The line High at the end of the pull LOWs is the only thing that can change.
 }
 
 /// @brief Try to send the RTR(Remote Transmission Request) bit. While following message priority.
@@ -168,14 +162,14 @@ byte SlowHomeNet::sendRTR(byte v) {
 /// @param v The data length code.
 /// @return the code sent on the bus, not necessarily form this node.
 byte SlowHomeNet::sendDataLen(byte v, byte RTR = 0) {
-  byte sb = sendBits(v, 3);
+  byte sb = sendBits(v, DataLengthBitsLn);
   if (sb > 0) {
     // As we lost out to a higher priority message we are in receiving mode now.
-    byte x = (1 << (3 - sb)) - 1;
+    byte x = (1 << (DataLengthBitsLn - sb)) - 1;
     v = v bitand x;
     x = 3 - sb;
     bitSet(v, x);
-    byte r = readBits(3 - sb);
+    byte r = readBits(DataLengthBitsLn - sb);
     pushDataLen(r bitor v, RTR);
     return (r bitor v);
   } else {
@@ -280,12 +274,20 @@ byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
   byte x;
   if (l > 4) l = 4;
   dataArray[0] = command;
-  for (x = (l + 1) - 1; x >= 0; x--) {// the + 1 is for the command length in bytes
+  for (x = (l + 1) - 1; x >= 0; x--) {  // the + 1 is for the command length in bytes
     dataArray[x] = ((byte)(data bitand 0xFF));
     if (x > 0) data = data >> 8;
   }
   return l;
 }
+
+/// @brief  For sending message id and data packets over a network, should only be called when not already receiving a message
+/// @param command A byte Representing the command byte(or message Id) that you want to send over the network.
+/// @details It specifies the type of command or operation you want to perform. This command byte is used to communicate instructions
+/// or actions between different units on the network
+/// @param data A byte of data to send.
+/// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
+byte SlowHomeNet::send(byte command, byte data) { return sendHelper(0, 1, setDataArray(command, data)); };
 
 /**
  * @brief For sending message id and data packets over a network, should only be called when not already receiving a message
@@ -293,36 +295,39 @@ byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
  * @details handling various scenarios such as sending the message framwork, message id, data transmission and CRC calculation.
  * TODO: needs expanding to handle more than (0 or 1) byte of data.
  *
- * @param command A byte Representing the command byte(or message Id) that you
- * want to send over the network.
- * @details It specifies the type of command or operation
- * you want to perform. This command byte is used to communicate instructions
- * or actions between different units on the network
- *
- * @param data if = 0 no date frame is sent, else data is sent in a 1 byte date frame.
- * Currently only handles 0 or 1 byte of data, TODO handle 2 and 4 bytes.
- *
  * @param RTR Remote Transmission Request, 0 = sending message, 1 = request another unit to send a message.
  * Defaults to send message (= 0).
+ *
+ * @param mLen Message length in bytes.
+ *
+ * @param dLen Data length in bytes.
  *
  * @return The function `SlowHomeNet::send` returns different values based on
  * the outcome of the communication process. Here are the possible return
  * values and their meanings:
  *  0,  Successfully sent and received Ack.
- *  1  line error.
- *  16 = warn no Ack. No other uint handed the message.
+ *  1,  line error.
+ *  16, warn no Ack. No other uint handed the message.
  *  17, Higher priority message being sent, received in buffer.
  *  18, network SOF mismatch on different units, network down or not reading all incoming messages properly and checking for in middle of message.
- *  19 unhandled data size.
+ *  19, unhandled data size.
  *
  */
 byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
   byte sent, crc, t, dataLenCode, i;
- // byte crcBuf[2];
-  if (sendStartOfFrame() == SOFBits) {  // Try to send start of frame
+  // byte crcBuf[2];
+
+  if (sendStartOfFrame() == SOFValue) {  // Try to send start of frame.
 
     // Send RTR (Remote Transmission Request).
-    RTR = sendRTR(RTR);
+    t = sendRTR(RTR);
+    if (t != RTR) {
+      byte r = readBits(DataLengthBitsLn);
+      t = pushDataLen(r, t);
+      if (t > 0) return t;  // No room in buffer, returning.
+      receiveRest(4);  // TODO: test this function.
+      return 17;       // Received message in buffer
+    }
 
     // next handle data length
     dataLenCode = getLenCode(mLen, dLen);
@@ -375,7 +380,7 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
       return Error_AckError;
     } else {
       sent = sendBits(0b1, 1);
-      if (sent != 1) {  // Another unit signaled a receive error.
+      if (sent != 0) {  // Another unit signaled a receive error.
         return Error_AnotherUnit_AckError;
       }
       sent = sendBits(0b1, 1);  // TODO Not bothering to check for delimiter errors
@@ -409,7 +414,7 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
  * @return byte
  */
 byte SlowHomeNet::receiveRest(byte bitPos) {
-  byte bufSI, r, RTR, dataLength, crc, t, tl,  lenCode;
+  byte bufSI, r, RTR, dataLength, crc, t, tl, lenCode;
 
   // get any remaining RTR and dataLength bits. RTR = (Remote Transmission Request).
   if (bitPos < 4) {
