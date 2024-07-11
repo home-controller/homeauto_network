@@ -20,7 +20,23 @@
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
 #define MaxInUseHigh
-#define CRCError 
+#define CRCError
+#define SOFBits 2  // SOF (Start of Frame) Bits.
+
+#define Error_NoError 0        //  0,  Successfully sent and received Ack.
+#define Error_LineError 1      //  1,  line error.
+#define Error_AckError 16      //  16,  A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
+#define Error_LostPriority 17  //  17, Higher priority message being sent, received in buffer.
+
+///  18, could be network SOF mismatch on different units,
+/// or network down or not reading all incoming messages properly
+/// or not checking for if in middle of message for example at program start
+/// or if receiving messages and only sending them and not checking for line free.
+#define Error_NetworkProblem 18
+#define Error_UnhandledDataSize 19     // 19 unhandled data size.
+#define Error_AnotherUnit_AckError 20  // Another unit signaled a receive error, i.e. it failed it's CRC check.
+#define Error_EOFCodeStored 21         // End of frame error code stored in private class var: endOfFrameError
+
 class SlowHomeNet {
  public:
   // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
@@ -83,6 +99,11 @@ class SlowHomeNet {
                                           // Changed from 600 to 488 as this allows shifting right 11 to divide by 2048.
                                           // so number or bits can be given by t >> 11 and the remaining time by t bitand (2048 - 1)
 
+  /// For storing any error codes from other units.
+  /// TODO: As well as storing end of frame error codes could also store any code added mid frame by pulling low for 6 connective bits
+  /// this type off lower level error handling is not implemented yet nd my not be.
+  byte endOfFrameError = 0;
+
   // To be acuate 1e6/2048 would be a line speed of of  488 + 9 ∕ 32 bits per second. P.S. 1e6 = 1 million, the number of microseconds in a second
   // This is truncated to an int, giving 488  bits per second line speed
   // With delays for code execution and differing clock speeds on different processors on the line etc. timings will probably not be that acuate anyway.
@@ -112,7 +133,9 @@ class SlowHomeNet {
   unsigned long lastTime;  // In micros. 1/million of a second
   volatile unsigned long CurrentTime;
 
-  //byte bitPos = 0;                 /// @brief pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted.
+  /// @brief pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted. Or stuffed bits.
+  /// TODO: If only used in IntCallback(); might be better as a "static" type.
+  byte bitPos = 0;       /// used in IntCallback(); (when using pin change interrupts)
   byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
   byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
   byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
@@ -146,9 +169,10 @@ class SlowHomeNet {
   byte getDataLen(byte l);
   byte getMessageLen(byte l);
 
-  byte pushDataLen(byte l, byte RTR = 0);
+  byte pushDataLen(byte l, byte RTR );
   byte pushMessageId(byte m);
 
+  byte sendStartOfFrame();
   byte sendRTR(byte v);
   byte sendDataLen(byte v);
   byte sendMessageId(byte v);

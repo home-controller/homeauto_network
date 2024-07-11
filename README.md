@@ -20,7 +20,7 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 
-2. bits[1 Maybe more] A pull down pulse to say I am about to start sending. Be a good idea to add a var for number of bits here, to make checking each time through main loop more reliable.
+2. bits[1 Maybe more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. Be a good idea to add a var for number of bits here, to make checking each time through main loop more reliable. Maybe add an option for high bit(or even 1/2 bit) after the pull low, to help with timings as if checking in the main loop for example might not know when the pull low started.
 3. bits[1] RTR (Remote Transmission Request).
 3.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
 should we add a bit to set when we are sending the message back to say we handled it here.
@@ -50,7 +50,7 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 
 * [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
 
-* I think(should look it up) CAN have a max pull-down of 6 bits and anything more is used to set an error. So if one unit gets a CRC error it can use this to cancel the send and set an error thus keeping all units in sync.
+* CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
 * Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.
 * The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 * At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
