@@ -21,12 +21,15 @@
 
 #define MaxInUseHigh
 #define CRCError
-#define SOFBits 2  // SOF (Start of Frame) Bits.
+#define SOFBits 2         // SOF (Start of Frame) Bits.
+#define maxDataSize 4     // the maximum data frame size in bytes, the is separate for the message frame.
+#define maxMessageSize 1  // The maximum massage size in bytes, TODO: can only be 1 at the min.
 
-#define Error_NoError 0        //  0,  Successfully sent and received Ack.
-#define Error_LineError 1      //  1,  line error.
-#define Error_AckError 16      //  16,  A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
-#define Error_LostPriority 17  //  17, Higher priority message being sent, received in buffer.
+#define Error_NoError 0         //  0,  Successfully sent and received Ack.
+#define Error_LineError 1       //  1,  line error.
+#define Error_NoRoomInBuffer 3  //  3,  Not enough or no room to store the info needed in the buffer.
+#define Error_AckError 16       //  16, A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
+#define Error_LostPriority 17   //  17, Higher priority message being sent, received in buffer.
 
 ///  18, could be network SOF mismatch on different units,
 /// or network down or not reading all incoming messages properly
@@ -55,7 +58,11 @@ class SlowHomeNet {
   byte nextIndex() { return buf.nextIndex(); }
 
   //+++++++++++++++++ Send ++++++++++++++++++++++++++++++++++++++++
-  byte send(byte command, byte date);
+  byte setDataArray(byte command, byte data);
+  byte setDataArray(byte command, word data);
+  byte setDataArray(byte command, uint32_t data, byte l);
+  byte sendHelper(byte RTR, byte mLen, byte dLen);
+  byte send(byte command, byte data) { return sendHelper(0, 1, setDataArray(command, data)); };
 
   //+++++++++++++++++++++++++ Misc ++++++++++++++++++++++++++++++++++++
 
@@ -135,11 +142,12 @@ class SlowHomeNet {
 
   /// @brief pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted. Or stuffed bits.
   /// TODO: If only used in IntCallback(); might be better as a "static" type.
-  byte bitPos = 0;       /// used in IntCallback(); (when using pin change interrupts)
+  byte bitPos = 0;                 /// used in IntCallback(); (when using pin change interrupts)
   byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
   byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
   byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
   byte lastState = 1;
+  byte dataArray[maxDataSize + maxMessageSize];// beside using this to send different size messages and data, the CRC function wants it all in one array.
 
   byte dataIn = 0;
   /*
@@ -168,13 +176,15 @@ class SlowHomeNet {
   byte getPulseNo(byte pulses, byte level);
   byte getDataLen(byte l);
   byte getMessageLen(byte l);
+  byte getMessageDataLen(byte l);
+  byte getLenCode(byte mLen, byte dLen);
 
-  byte pushDataLen(byte l, byte RTR );
+  byte pushDataLen(byte l, byte RTR);
   byte pushMessageId(byte m);
 
   byte sendStartOfFrame();
   byte sendRTR(byte v);
-  byte sendDataLen(byte v);
+  byte sendDataLen(byte v, byte);
   byte sendMessageId(byte v);
   byte sendData(byte v);
   word sendData(word v);

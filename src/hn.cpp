@@ -154,19 +154,20 @@ byte SlowHomeNet::sendStartOfFrame() {
   }
 }
 
-/// @brief Try to send the RTR bit. While following message priority.
+/// @brief Try to send the RTR(Remote Transmission Request) bit. While following message priority.
 /// @param v the bit to send.
 /// @return If another unit has priority(sending 0 when we send 1) return their value else return v
 byte SlowHomeNet::sendRTR(byte v) {
   // v = v bitand 0b1;
-  if (sendBits(v, 1) > 0) return 0;
-  else return v;
+  if (sendBits(v, 1) > 0) {
+    return 0;
+  } else return v;
 }
 
 /// @brief Send the code for the length of data being sent.
 /// @param v The data length code.
 /// @return the code sent on the bus, not necessarily form this node.
-byte SlowHomeNet::sendDataLen(byte v) {
+byte SlowHomeNet::sendDataLen(byte v, byte RTR = 0) {
   byte sb = sendBits(v, 3);
   if (sb > 0) {
     // As we lost out to a higher priority message we are in receiving mode now.
@@ -175,7 +176,7 @@ byte SlowHomeNet::sendDataLen(byte v) {
     x = 3 - sb;
     bitSet(v, x);
     byte r = readBits(3 - sb);
-    pushDataLen(r bitor v);
+    pushDataLen(r bitor v, RTR);
     return (r bitor v);
   } else {
     return v;
@@ -251,6 +252,41 @@ byte SlowHomeNet::sendEndOfFrame() {
   return 0;
 }
 
+/// @brief Store a byte command and data in the dataArray[] before calling send. The data byte is at dataArray[1]
+/// @param command The 1 byte message ID to be stored in dataArray[0]
+/// @param data This needs to be of type byte as function overloading is used.
+/// @return 1, The number of bytes stored.
+byte SlowHomeNet::setDataArray(byte command, byte data) {
+  dataArray[0] = command;
+  dataArray[1] = data;
+  return 1;
+}
+
+/// @brief Store 2 bytes in the dataArray before calling send. High order byte at dataArray[0]
+/// @param data The data to store to then send. This needs to be of type byte as function overloading is used.
+/// @return 2, The number of bytes stored.
+byte SlowHomeNet::setDataArray(byte command, word data) {
+  dataArray[0] = command;
+  dataArray[1] = highByte(data);
+  dataArray[2] = lowByte(data);
+  return 2;
+}
+
+/// @brief Store up to 4 bytes in the dataArray before calling send.
+/// @param data the data to store to then send.
+/// @param l the number of bytes to send. The high order bytes are stored first at dataArray[0]
+/// @return The number of bytes stored.
+byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
+  byte x;
+  if (l > 4) l = 4;
+  dataArray[0] = command;
+  for (x = (l + 1) - 1; x >= 0; x--) {// the + 1 is for the command length in bytes
+    dataArray[x] = ((byte)(data bitand 0xFF));
+    if (x > 0) data = data >> 8;
+  }
+  return l;
+}
+
 /**
  * @brief For sending message id and data packets over a network, should only be called when not already receiving a message
  *
@@ -266,6 +302,9 @@ byte SlowHomeNet::sendEndOfFrame() {
  * @param data if = 0 no date frame is sent, else data is sent in a 1 byte date frame.
  * Currently only handles 0 or 1 byte of data, TODO handle 2 and 4 bytes.
  *
+ * @param RTR Remote Transmission Request, 0 = sending message, 1 = request another unit to send a message.
+ * Defaults to send message (= 0).
+ *
  * @return The function `SlowHomeNet::send` returns different values based on
  * the outcome of the communication process. Here are the possible return
  * values and their meanings:
@@ -277,28 +316,31 @@ byte SlowHomeNet::sendEndOfFrame() {
  *  19 unhandled data size.
  *
  */
-byte SlowHomeNet::send(byte command, byte data) {
-  byte sent, crc, t, dataLenCode;
-  byte crcBuf[2];
+byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
+  byte sent, crc, t, dataLenCode, i;
+ // byte crcBuf[2];
   if (sendStartOfFrame() == SOFBits) {  // Try to send start of frame
-    sent = sendRTR(0);                  // this is high priority so no need to check.
+
+    // Send RTR (Remote Transmission Request).
+    RTR = sendRTR(RTR);
 
     // next handle data length
-    if (data == 0) dataLenCode = 0;
-    else dataLenCode = 1;
+    dataLenCode = getLenCode(mLen, dLen);
+    dLen = getDataLen(dataLenCode);     // As getLenCode() give a default code for invalid values this should kind of fix an invalid value for dLen
+    mLen = getMessageLen(dataLenCode);  // same as above.
     sent = sendDataLen(dataLenCode);
-    if (sent != data) {       // lost bus priority.
-      t = pushDataLen(sent);  // push RTR and message/data length.
-      if (t > 0) return t;
+    if (sent != dataLenCode) {     // lost bus priority.
+      t = pushDataLen(sent, RTR);  // push RTR and message/data length.
+      if (t > 0) return t;         // No room in buffer, returning.
       // Next fetch rest of message.
-      receiveRest(4);
-      return 17;  // Received message in buffer
+      receiveRest(4);  // TODO: test this function.
+      return 17;       // Received message in buffer
     }
-    // TODO handle date more than 1 byte. ATM it will always be 0 or 1 byte though.
 
+    // TODO handle date more than 1 byte. ATM it will always be 0 or 1 byte though.
     // Send message byte(s?)
-    sent = sendMessageId(command);
-    if (sent != command) {
+    sent = sendMessageId(dataArray[0]);  // TODO: Update to work with more than 1 byte message lengths.
+    if (sent != dataArray[0]) {
       t = pushDataLen(dataLenCode);
       if (t > 0) return t;
       buf.push(sent);
@@ -307,26 +349,29 @@ byte SlowHomeNet::send(byte command, byte data) {
     }
 
     // Send data byte(s?)
-    sent = sendData(data);
-    if (sent != data) {
-      t = pushDataLen(dataLenCode);
-      if (t > 0) return t;
-      buf.push(command);
-      buf.push(sent);
-      receiveRest(4 + 8 + 8);
-      return 17;  // Received message in buffer
+    for (i = mLen; i < mLen + dLen; i++) {
+      sent = sendData(dataArray[i]);
+      if (sent != dataArray[i]) {
+        t = pushDataLen(dataLenCode);
+        if (t > 0) return t;
+        byte x;
+        for (x = 0; x < i; x++) buf.push(dataArray[x]);  // push message plus data bytes befor this on one if any.
+        buf.push(sent);
+        receiveRest(4 + 8 + (8 * (i + 1)));  // 4 RTR bit + 3 length bits, 8 bits of message ID, (8 * (i + 1)) data bits from this for loop including 8 for this time.
+        return 17;                           // Received message in buffer
+      }
     }
 
     // send CRC
-    crcBuf[0] = command;
-    crcBuf[1] = data;
-    crc = Crc4(crcBuf, 2);
+    crc = Crc4(dataArray, mLen + dLen);
     sent = sendCRC(crc);  // if this fails we have a line error or bug in the code.
 
     // send Ack
     if (sent != crc) {           // CRC fail so send Ack failure.
       sent = sendBits(0b01, 2);  // Ack fail plus Ack delimiter.
-      // TODO we could check for delimiter error here.
+      // If sent is different it means another unit sent the same message but somehow we received a different CRC.
+      // Or there is some other line error or code bug.
+      //  TODO we could check for delimiter error here.
       return Error_AckError;
     } else {
       sent = sendBits(0b1, 1);
@@ -364,14 +409,19 @@ byte SlowHomeNet::send(byte command, byte data) {
  * @return byte
  */
 byte SlowHomeNet::receiveRest(byte bitPos) {
-  byte bufSI, r, RTR, dataLength, crc, t,tl, mdLen;
-  if (bitPos < 4) {  // get any remaining RTR and dataLength bits
+  byte bufSI, r, RTR, dataLength, crc, t, tl,  lenCode;
+
+  // get any remaining RTR and dataLength bits. RTR = (Remote Transmission Request).
+  if (bitPos < 4) {
     r = readBits(4 - bitPos);
-    RTR = buf.getBufArrayElement(bufIndexPartMessageAt);
-    RTR = RTR bitor r;
-    mdLen = getDataLen(RTR);
+    t = buf.getBufArrayElement(bufIndexPartMessageAt);
+    RTR = t bitand 0b10000000;
+    lenCode = (t bitor r) bitand 0b01111111;  // TODO: Check that RTR is stored with the bits in the right place and don't need shifting.
+    dataLength = getDataLen(lenCode);
   }
-  if (bitPos < (4 + 8)) {  // get any remaining RTR and dataLength bits
+
+  // get any remaining message ID  bits
+  if (bitPos < (4 + 8)) {
     r = readBits(8 - (bitPos - 4));
     if (bitPos > 4) {
       t = buf.getBufArrayElement(bufIndexPartMessageAt + 1);
@@ -480,7 +530,7 @@ boolean SlowHomeNet::getNetwork() {
 byte SlowHomeNet::getDataLen(byte l) {
   l = l bitand 0b111;
   if (l <= 2) return l;
-  if (l = 3) return 4;
+  if (l == 3) return 4;
   // error undefined for code greater than 3, return max size.
   return 4;
 }
@@ -493,6 +543,22 @@ byte SlowHomeNet::getMessageLen(byte l) {
 
   // error undefined for code greater than 3, return max size.
   return 1;
+}
+byte SlowHomeNet::getMessageDataLen(byte l) { return (getMessageLen(l) + getDataLen(l)); }
+
+/// @brief Get the message plus data length code
+/// @param mLen The message length
+/// @param dLen The data length;
+/// @return The length code. If no code to fit params then return Max length.
+byte SlowHomeNet::getLenCode(byte mLen, byte dLen) {
+  if (mLen == 1) {
+    if (dLen <= 3)  // 4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
+      return dLen;
+    else if (dLen == 3) return 4;
+  }
+  // TODO: will add other codes as needed.
+  //  error undefined for code greater than 3, return max size.
+  return 4;
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++ Reed/receive/ watch line/pin +++++++++++++++++++++++++++++++++
