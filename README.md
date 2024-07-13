@@ -117,5 +117,5 @@ If we add a resistor to the IO pin to limit the current in case of short to grou
 * Line pullup resistor = 1kΩ
 * IO pin to line protection resistor = 28Ω
 * [ ] TODO: There is a problem with backfeed trying to power the chip through the IO pin when a unit is turn off(unpowered), when using the ATmega328P(and most other chips). This means if one unit is off it pulls the line low all the time.
-  * TODO: Add/Change the code to have the option to use 2 IO pins, 1 to read to line with a high enough resistor in line so it will not pull the line low when the unit is un-powered. And the other pin can be used when sending messages by pulling the line low through and transistor. N-Channel MOSFET or Opto etc.
-  * TODO: While we are at it change the code so it can go high to pull the line low for an NPN transistor etc.
+  * [ ] TODO: Add/Change the code to have the option to use 2 IO pins, 1 to read to line with a high enough resistor in line so it will not pull the line low when the unit is un-powered. And the other pin can be used when sending messages by pulling the line low through and transistor. N-Channel MOSFET or Opto etc.
+  * [ ] TODO: While we are at it change the code so it can go high to pull the line low for an NPN transistor etc.
