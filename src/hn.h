@@ -25,10 +25,14 @@
 #if SOFBits > 1
 #define SOFValue 0b01  // if the number of bit is greater than 1 pull low for (SOFBits - 1) bits then 1 hight bit.
 #else
-#define SOFValue = 0  // else pull low for 1 bit.
+#define SOFValue 0  // else pull low for 1 bit.
 #endif
-#define maxDataSize 4     // the maximum data frame size in bytes, the is separate for the message frame.
-#define maxMessageSize 1  // The maximum massage size in bytes, TODO: can only be 1 at the min.
+#define maxDataSize 4         // the maximum data frame size in bytes, the is separate for the message frame.
+#define maxMessageSize 1      // The maximum massage size in bytes, TODO: can only be 1 at the min.
+#define _pinReg PIND          // read PIND for pins D0 to D7 states
+#define _pinMask 0b00000100;  // Mask for third pin in reg. i.e. on PIND mask for D2
+#define _hn_int_pin 2
+#define DataLengthBitsLn 3  // the number of bits storing the message and data frame length in code.
 
 #define Error_NoError 0         //  0,  Successfully sent and received Ack.
 #define Error_LineError 1       //  1,  line error.
@@ -44,6 +48,7 @@
 #define Error_UnhandledDataSize 19     // 19 unhandled data size.
 #define Error_AnotherUnit_AckError 20  // Another unit signaled a receive error, i.e. it failed it's CRC check.
 #define Error_EOFCodeStored 21         // End of frame error code stored in private class var: endOfFrameError
+#define Error_LineErrorFrameStart 22
 
 class SlowHomeNet {
  public:
@@ -55,7 +60,6 @@ class SlowHomeNet {
   //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
   void exc();  // Need to call each time though the main loop.
   byte receiveMonitor();
-  byte receiveRest(byte bitPos);
 
   /// @brief Get the number of bytes of received date stored in the receive buffer.
   /// @return bytes in buffer.
@@ -101,10 +105,6 @@ class SlowHomeNet {
   // for the MEGA the type may need to be changed to uint16_t
   volatile uint8_t *pin_DDR_reg;  // = portModeRegister(port);
   volatile uint8_t *port_IO_reg;  // volatile uint8_t *out = portOutputRegister(port);
-#define _pinReg PIND              // read PIND for pins D0 to D7 states
-#define _pinMask 0b00000100;      // Mask for third pin in reg. i.e. on PIND mask for D2
-#define _hn_int_pin 2
-#define  DataLengthBitsLn 3
   byte networkPin;
   word bitPulseLength = 2048;  //  1 bit takes 2048 microseconds (~= 1e6 / lineSpeed;) (microsecond = 1 millionth of a second).
 
@@ -154,6 +154,7 @@ class SlowHomeNet {
   byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
   byte lastState = 1;
   byte dataArray[maxDataSize + maxMessageSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
+  byte RTRLenCode;                               // The RTR in the high bit plus the length code.
 
   byte dataIn = 0;
   /*
@@ -199,6 +200,9 @@ class SlowHomeNet {
   byte sendEndOfFrame();
 
   boolean getNetwork();
+  byte checkSOF();
+  byte receiveRest(byte bitPos);
+
   void IntCallback();  // Store 3 line change timings and discared any short enough to be bounce or a line spike. Although would this be a thing?
 };
 

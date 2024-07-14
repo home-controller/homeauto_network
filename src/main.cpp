@@ -214,11 +214,12 @@ void loop() {
   static byte c = 0;
   wdt_reset();
   gpioIn.SwitchesExe();  // Func is debounced
-  hNet.exc();
+  hNet.exc(); // TODO: doing nothing for now
 #ifdef receive_buildflag
   /// really need to
   wdt_disable();
-  // debug loop
+
+ /*  // debug loop______________________#=========================
   byte a_l;  // pin changes stored.
   unsigned long
       a[20];  // for storing pin changes in millis for for the message. although the is a max of 59bit some are always at a set value and only use 2 date bytes max for now.
@@ -262,8 +263,8 @@ void loop() {
       }
       Serial.println();
     }
-  }
-  /* r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
+  } */
+  r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
   wdt_enable(WDTO_8S);
   if (r == 0) {
     Serial.print(F("Message received with no error "));
@@ -288,7 +289,7 @@ void loop() {
   } else {
     Serial.print(F("Error receiving message, r = "));
     Serial.println(r);
-  } */
+  }
 #endif
 #ifdef send_buildflag
   sendCTime = millis();
