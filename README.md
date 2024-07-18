@@ -55,9 +55,9 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 * The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 * At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
 
-* [ ] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
+* [x] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
 * [ ] handle the rest of the data lengths.
-* [ ] Implement crc
+* [x] Implement crc
 * [ ]   each unit on the line will pull the Ack bit low on CRC fail
 * [ ] Add an additional Ack bit for units that can handel a message.
 * [ ]   Acknowledgment frame bit set for messages that this unit can deal with.
