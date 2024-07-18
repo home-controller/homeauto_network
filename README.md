@@ -34,9 +34,9 @@ should we add a bit to set when we are sending the message back to say we handle
 11. bits[7] : 10: 7 bit end of fame.
 
 ```fixed width text
-|S|R|ccc|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|eeeeeee|
-|1|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits.
-|0|?|1??|????????|????????????????|????|1|?|1|1111111| the bits value.
+|SF|R|ccc|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|eeeeeee|
+|01|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits.
+|01|?|1??|????????|????????????????|????|1|?|1|1111111| the bits value.
 Max 42 bits high? 
 
 How did I get that? for data R is low so after that:
@@ -68,11 +68,11 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 
 * [ ] Read option with ISR on pin change to just store starting time then disable pin interrupts and enable general interrupts and then just call the readMessage() function. This might play badly with other time critical stuff though.
 * [ ] Options to have receiving unit(s) use extra wire with interrupt or a week pull-down with 1 controller so the controller can check each time through the main loop.
-* [ ] Maybe have an option to increase the start pull-down length so it would be long enough that it would stay low for 1 time through the main loop. then you would not need to use interrupts to read. With the ack bit implemented the sender would resend so would not have to catch if doing more than normal in the main loop. Would also need to add 1 high bit at end of SOF (Start of Frame).
+* [x] Maybe have an option to increase the start pull-down length so it would be long enough that it would stay low for 1 time through the main loop. then you would not need to use interrupts to read. With the ack bit implemented the sender would resend so would not have to catch if doing more than normal in the main loop. Would also need to add 1 high bit at end of SOF (Start of Frame).
 * [ ] Implement pin change interrupt line reading.
-* [ ] Interrupt to start then continue with timing subsequent pin changes
+* [ ] Interrupt to start then continue with timing subsequent pin changes?
 * [ ] Alternative first interrupt sets up a timer. Could even use pin change interrupt to correct timing at guaranteed bit change points.
-* [ ] TODO: interrupt version away to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
+* [ ] TODO: interrupt version, a way to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
 * [ ] TODO: Some can standards check the level of the pulse 87.5 percent along the pulse length, this gives any reflections/ringing time to settle, see: <http://www.bittiming.can-wiki.info/>
 
 ## Can protocol web pages

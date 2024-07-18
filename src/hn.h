@@ -49,6 +49,10 @@
 #define Error_AnotherUnit_AckError 20  // Another unit signaled a receive error, i.e. it failed it's CRC check.
 #define Error_EOFCodeStored 21         // End of frame error code stored in private class var: endOfFrameError
 #define Error_LineErrorFrameStart 22
+#define Error_NoMessageStoredToRetrieve 30
+#define Error_MessageNotInBuffer 31
+#define Error_DataNotInBuffer 32
+
 
 class SlowHomeNet {
  public:
@@ -60,6 +64,7 @@ class SlowHomeNet {
   //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
   void exc();  // Need to call each time though the main loop.
   byte receiveMonitor();
+  byte getFromBuf(byte a[], byte &RTR, byte &mLen, byte & dLen);
 
   /// @brief Get the number of bytes of received date stored in the receive buffer.
   /// @return bytes in buffer.
@@ -168,8 +173,9 @@ class SlowHomeNet {
    * network with not much more than a libary change to the code.
    */
 
-#define DigitalWriteTime 4  // forums says 4.5µs but I think than includes the for loop
-#define DigitalReadTime 5   // forums says 4.78µs but I think than includes the for loop
+#define DigitalWriteTime 4    // forums says 4.5µs but I think than includes the for loop
+#define DigitalReadTime 5     // forums says 4.78µs but I think than includes the for loop
+#define ReadBitsLoopMicros 3  // this is for each time though the loop that checks 8 time per bit so a value of 3 would be 24µs per bit
 
   byte parityErrorCount = 0;  // If parity fail int this and discard. Not put in buffer.
 

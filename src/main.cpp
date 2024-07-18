@@ -214,80 +214,89 @@ void loop() {
   static byte c = 0;
   wdt_reset();
   gpioIn.SwitchesExe();  // Func is debounced
-  hNet.exc(); // TODO: doing nothing for now
+  hNet.exc();            // TODO: doing nothing for now
 #ifdef receive_buildflag
   /// really need to
   wdt_disable();
 
- /*  // debug loop______________________#=========================
-  byte a_l;  // pin changes stored.
-  unsigned long
-      a[20];  // for storing pin changes in millis for for the message. although the is a max of 59bit some are always at a set value and only use 2 date bytes max for now.
-  byte a2[20];
-  boolean pinLevel, lastLev;
-  // Serial.print('.');
-  byte p = hNet.getPinNo();
-  pinLevel = digitalRead(p);
-  if (pinLevel == LOW) {
-    lastLev = LOW;
-    a_l = 0;
-    sendCTime = micros();
-    sendLastTime = sendCTime;
-    unsigned long fistTime;
-    fistTime = sendCTime;
-    while ((sendCTime - fistTime) < 1000000)  // Check for about 1 second.
-    {
-      pinLevel = digitalRead(p);
-      if (lastLev != pinLevel) {
-        if (a_l <= 20) {
-          a[a_l] = sendCTime - sendLastTime;
-          a2[a_l] = lastLev;
-          sendLastTime = sendCTime;
-        }
-        lastLev = pinLevel;
-        if (a_l < 255) a_l++;
-      }
-      sendCTime = micros();
-    }
-    Serial.print(F("Pin toggled between low/high "));
-    Serial.print(a_l + 1);
-    Serial.println(F(" times"));
-    if (a_l >= 1) {
-      Serial.print(F("The first pull LOW pulse lasted approx "));
-      Serial.print(a[0]);
-      Serial.print(F(" microseconds, Microseconds for subsequent changes: "));
-      byte i;
-      for (i = 1; ((i <= a_l) and (i < 20)); i++) {
-        if (i > 1) Serial.print(", ");
-        Serial.print(a[i]);
-      }
-      Serial.println();
-    }
-  } */
+  /*  // debug loop______________________#=========================
+   byte a_l;  // pin changes stored.
+   unsigned long
+       a[20];  // for storing pin changes in millis for for the message. although the is a max of 59bit some are always at a set value and only use 2 date bytes max for now.
+   byte a2[20];
+   boolean pinLevel, lastLev;
+   // Serial.print('.');
+   byte p = hNet.getPinNo();
+   pinLevel = digitalRead(p);
+   if (pinLevel == LOW) {
+     lastLev = LOW;
+     a_l = 0;
+     sendCTime = micros();
+     sendLastTime = sendCTime;
+     unsigned long fistTime;
+     fistTime = sendCTime;
+     while ((sendCTime - fistTime) < 1000000)  // Check for about 1 second.
+     {
+       pinLevel = digitalRead(p);
+       if (lastLev != pinLevel) {
+         if (a_l <= 20) {
+           a[a_l] = sendCTime - sendLastTime;
+           a2[a_l] = lastLev;
+           sendLastTime = sendCTime;
+         }
+         lastLev = pinLevel;
+         if (a_l < 255) a_l++;
+       }
+       sendCTime = micros();
+     }
+     Serial.print(F("Pin toggled between low/high "));
+     Serial.print(a_l + 1);
+     Serial.println(F(" times"));
+     if (a_l >= 1) {
+       Serial.print(F("The first pull LOW pulse lasted approx "));
+       Serial.print(a[0]);
+       Serial.print(F(" microseconds, Microseconds for subsequent changes: "));
+       byte i;
+       for (i = 1; ((i <= a_l) and (i < 20)); i++) {
+         if (i > 1) Serial.print(", ");
+         Serial.print(a[i]);
+       }
+       Serial.println();
+     }
+   } */
+  Serial.println(F("calling receiveMonitor"));
   r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
   wdt_enable(WDTO_8S);
   if (r == 0) {
-    Serial.print(F("Message received with no error "));
-    Serial.print(r);
+    byte a[5], rtr, dl, ml;
+    Serial.print(F("Message received with no error(0)"));
+    //Serial.print(r);
     Serial.print(F(", buffer len: "));
+    Serial.println(hNet.recCount());
+    Serial.println(F("calling getFromBuf"));
+    byte t = hNet.getFromBuf(a, rtr, ml, dl);
+    Serial.print(F("buffer len after pop: "));
     Serial.print(hNet.recCount());
+    Serial.print(F(", getFromBuf(): "));
+    Serial.print(t);
+    Serial.print(F(", message bytes: "));
+    Serial.print(ml);
     Serial.print(F(", data bytes: "));
-    byte dataBits = hNet.peek(0) bitand 0b1111;
-    Serial.print(dataBits);
+    Serial.print(dl);
     Serial.print(F(", Remote Transmission Request: "));
-    Serial.print(hNet.peek(0) >> 7);
-    byte lc = 1;
-    while ((dataBits >= lc) and (hNet.recCount() >= (dataBits + 1))) {
+    Serial.print(rtr);
+    byte lc = 0;
+    while ((ml + dl) > lc) {
       Serial.print(F(", data ["));
       Serial.print(lc);
       Serial.print(F("] = "));
-      Serial.print(hNet.peek(lc));
-      Serial.println();
+      Serial.print(a[lc]);
+      // Serial.println();
       lc++;
     }
     Serial.println();
   } else {
-    Serial.print(F("Error receiving message, r = "));
+    Serial.print(F("Error receiving message, error = "));
     Serial.println(r);
   }
 #endif
@@ -299,7 +308,7 @@ void loop() {
     sc = hNet.send(1, 7);
     Serial.print(F("Message sent "));
     Serial.print(sc);
-    if(sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
+    if (sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
     Serial.println();
   }
 #endif
