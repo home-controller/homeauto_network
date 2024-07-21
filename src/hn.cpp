@@ -170,7 +170,7 @@ byte SlowHomeNet::sendDataLen(byte v, byte RTR = 0) {
     x = 3 - sb;
     bitSet(v, x);
     byte r = readBits(DataLengthBitsLn - sb);
-    pushDataLen(r bitor v, RTR);
+    //pushDataLen(r bitor v, RTR);
     return (r bitor v);
   } else {
     return v;
@@ -256,7 +256,7 @@ byte SlowHomeNet::setDataArray(byte command, byte data) {
   return 1;
 }
 
-/// @brief Store 2 bytes in the dataArray before calling send. High order byte at dataArray[0]
+/// @brief Store 1 byte message and 2 bytes in the dataArray before calling send. High order byte at dataArray[0]
 /// @param data The data to store to then send. This needs to be of type byte as function overloading is used.
 /// @return 2, The number of bytes stored.
 byte SlowHomeNet::setDataArray(byte command, word data) {
@@ -288,6 +288,12 @@ byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
 /// @param data A byte of data to send.
 /// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
 byte SlowHomeNet::send(byte command, byte data) { return sendHelper(0, 1, setDataArray(command, data)); };
+
+/// @brief  Send message id and data(16 bits), should only be called when not already receiving a message
+/// @param command A byte Representing the command byte(or message Id) that you want to send over the network.
+/// @param data A word(uint16_t) of data to send.
+/// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
+byte SlowHomeNet::sendW(byte command, word data) { return sendHelper(0, 1, setDataArray(command, data)); };
 
 /**
  * @brief For sending message id and data packets over a network, should only be called when not already receiving a message
@@ -416,27 +422,26 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
  */
 byte SlowHomeNet::receiveRest(byte bitPos) {
   byte r, crc, t, i;
-  byte mLen;  // length in bits.
-  byte dLen;  // length in bits.
+  byte mLen;  // length in bytes.
+  byte dLen;  // length in byt.
 
   // get RTR bit if needed. RTR = (Remote Transmission Request).
   if (bitPos == 0) RTRLenCode = readBits(1) << 7;  // RTRLenCode is a private class var.
-  byte rtrBit = RTRLenCode;
+  // byte rtrBit = RTRLenCode;
 
   // get any remaining RTR and dataLength bits.
   if (bitPos < (DataLengthBitsLn + 1)) {  // FDLBits = frame data+message length code bit number in frame.
     if (bitPos > 1) {
       r = readBits((DataLengthBitsLn + 1) - bitPos);
-      RTRLenCode |= r;
+      RTRLenCode |= r;  // RTRLenCode is a class var
     } else RTRLenCode |= readBits(DataLengthBitsLn);
   }
   /// Message len in bytes
-  byte readDataLenField = RTRLenCode;
+  // byte readDataLenField = RTRLenCode; only needed for debugging
   mLen = getMessageLen(RTRLenCode);
   dLen = getDataLen(RTRLenCode);
-  byte mLenBits = mLen << 3;
-  byte dLenBits = dLen << 3;
-  uint32_t st, et;
+  byte mLenBits = mLen << 3;// length in bits.
+  byte dLenBits = dLen << 3;// length in bits.
   // get any remaining message ID  bits
   if (bitPos < (4 + mLenBits)) {
     if (bitPos > 4) {  // If already read some of the Message ID field then finish any part byte and setup to read the rest.
@@ -445,9 +450,10 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
       dataArray[t] = dataArray[t] bitor r;
     } else t = 0;  // else setup to read all the Message ID field.
     for (i = t; i < mLen; i++) {
-      st = micros();
+      // uint32_t st, et; // Used to debug timings for readBits
+      // st = micros();
       r = readBits(8);
-      et = micros();
+      // et = micros();
       if (i > (0)) Serial.print(F("\n\r Error in for loop(get message)"));
       dataArray[i] = r;
     }
@@ -463,7 +469,7 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
       t = mLen;                                        // Where the first byte of data is stored in the array.
     }
     for (i = t; i < (mLen + dLen); i++) {
-      if (i > (1)) Serial.print(F("\n\r Error in for loop(get data)"));
+      //if (i > (1)) Serial.print(F("\n\r Error in for loop(get data)"));
       r = readBits(8);
       dataArray[i] = r;
     }
@@ -506,8 +512,8 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
   // Serial.print(et - st);
   // Serial.print(F(", RTR bit: "));
   // Serial.print(rtrBit, BIN);
-  // Serial.print(F(", RTRLenCode: "));
-  // Serial.print(RTRLenCode, BIN);
+   Serial.print(F("\n\r RTRLenCode: "));
+   Serial.println(RTRLenCode, BIN);
   // Serial.print(F(", Message len: "));
   // Serial.print(mLen, BIN);
   // Serial.print(F(", Data len: 0b"));
@@ -857,8 +863,8 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
       return i;
     } else {
       byte dLen = getMessageDataLen(RTRLenCode);
-      // Serial.print(F("\n\rgetMessageDataLen(): "));
-      // Serial.println(dLen);
+      Serial.print(F("\n\rgetMessageDataLen(): "));
+      Serial.println(dLen);
 
       for (i = 0; i < dLen; i++) { buf.push(dataArray[i]); }
     }

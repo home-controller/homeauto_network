@@ -53,7 +53,10 @@
 #define Error_MessageNotInBuffer 31
 #define Error_DataNotInBuffer 32
 
-
+/// @brief A wired network using IO pins on an MCU. Slow with minimal hardware requirements.
+/// @details This has some similarities with the CAN network but is much slower and don't need separate controller and transceiver chips.
+/// @details I am using it to send messages between units on light switches and the units turning the lights on and off.
+/// @details Although to avoid backfeed you may need a transistor a few resistors and 2 IO pins
 class SlowHomeNet {
  public:
   // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
@@ -64,7 +67,7 @@ class SlowHomeNet {
   //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
   void exc();  // Need to call each time though the main loop.
   byte receiveMonitor();
-  byte getFromBuf(byte a[], byte &RTR, byte &mLen, byte & dLen);
+  byte getFromBuf(byte a[], byte &RTR, byte &mLen, byte &dLen);
 
   /// @brief Get the number of bytes of received date stored in the receive buffer.
   /// @return bytes in buffer.
@@ -77,6 +80,7 @@ class SlowHomeNet {
   byte setDataArray(byte command, uint32_t data, byte l);
   byte sendHelper(byte RTR, byte mLen, byte dLen);
   byte send(byte command, byte data);
+  byte sendW(byte command, word data);
 
   //+++++++++++++++++++++++++ Misc ++++++++++++++++++++++++++++++++++++
 
@@ -159,7 +163,7 @@ class SlowHomeNet {
   byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
   byte lastState = 1;
   byte dataArray[maxDataSize + maxMessageSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
-  byte RTRLenCode;                               // The RTR in the high bit plus the length code.
+  byte RTRLenCode;                               // The RTR in the high bit plus the length code. Class var.
 
   byte dataIn = 0;
   /*

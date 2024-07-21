@@ -81,6 +81,12 @@ edit:
 list:
 	pio device list
 
+#Build docs
+.PHONY: docs
+docs:
+	doxygen -u
+	doxygen
+
 #Add udev rules
 .PHONY: udev
 udev:
