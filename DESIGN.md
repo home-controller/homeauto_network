@@ -1,42 +1,56 @@
 # HomeAuto Network
 
-## Still in Afa, unfinished code
+## Design
 
-This is a slow send/receive network(no master/slave) with collision detection and handling. A bit like CAN but way slower and cut-down and no need for extra hardware.
+### Lets go with
 
-Collision detection works like 1-wire and CAN with the smallest number having priority and not even knowing there was a collision(So no speed loss), the other unit will switch to reading mode and read the message. It can then try to send the message at a later time.
+1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 
-This is message based like CAN so there is no unit address but rather a message is sent for say light switch 7 just switch on. Then maybe the unit responsible for turning on the light will receive the message and turn it on. But there could also be a unit in between that decides what to do and than sends out messages to turn on more lights and/or sends MQTT messages etc.
+2. bits[1 Maybe more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. Be a good idea to add a var for number of bits here, to make checking each time through main loop more reliable. Maybe add an option for high bit(or even 1/2 bit) after the pull low, to help with timings as if checking in the main loop for example might not know when the pull low started.
+3. bits[1] RTR (Remote Transmission Request).
+3.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
+should we add a bit to set when we are sending the message back to say we handled it here.
+4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
+5. bits[8] command id. Maybe this should be moved down 2 rows?
+6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
+7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
+8. bits[1]: CRC delimiter. Delimiter is high.
+9. bits[1] Ack bit. Like CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
+10. bits[1] Ack delimiter bit (this high to?)
+11. bits[1] Ack bit. This is pulled low by any unit that can handle the message i.e. if the message was light switch turned on then this unit will turn on the light.
+12. bits[1] Ack delimiter bit, need this so the replying unit has some timing leeway
+13. bits[7] : 10: 7 bit end of fame.
 
-The idea is for a wired basic and slow network so you do not have to worry to much about end reflection and having different HIGH and LOW states at different points on the line/wire. Being slow should also help with any timing problems and be more tolerant of other stuff like web pages or mqtt hogging the processor and/or interrupts
+```fixed width text
+|SF|R|ccc|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|eeeeeee|
+|01|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits.
+|01|?|1??|????????|????????????????|????|1|?|1|1111111| the bits value.
+Max 42 bits high? 
 
-## hn is short for Home Network here
+How did I get that? for data R is low so after that:
+3(data length)+32(data)+4(CRC maybe with the right value of id(can't be bothered working it out))
++ 1 for (CRC delimiter) + 1 (Ack bit)  + 1 (Ack delimiter) + 7 (end of frame bits) well Then it just stays in the default high unused line state.
 
-* Not to be confused with Ethernet. And is for wired networks.
-* This will be kind of like a very cut down and slow CAN network. So there will be no need for network hardware.
+so:  3+32+4+1+1+1+7 = 49, or 42 not counting the 7 at end.
+
+So minimum number of bits for a message is 20 with no date and not waiting for end of frame.
+```
+
+### Maximum consecutive bits of the same value
+
+* [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
+
+* CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
 * Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.
 * The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 * At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
 
-### Minimal needed to work for controlling lights with switches and temp
+### Minimal needed to work for controlling lights with switches and temp.
 
 * [x] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
 * [x] handle the rest of the data lengths. Tested with 0,1,2 bytes of data.
 * [x] Implement crc
-* * [x] Each unit on the line will pull the Ack bit low on CRC fail
-* * * [ ] This still needs testing.
-* [ ] On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Add a inverted bit if 5 bits are at the same level(CAN uses 5) of high or low.
-
-### Current problems
-
-1. [ ] Sending 2 messages without a delay between them messes up the received message
-2. [ ] TODO check the frame leadout is being sent properly
-  i. [ ] After adding the code to make sure no we can't have 5 bits in a row of the same value then implement check for line free.
-.. 3 [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
-
-
-### Planning to add
-
+* [ ]   each unit on the line will pull the Ack bit low on CRC fail
 * [ ] Add an additional Ack bit for units that can handel a message.
 * [ ]   Acknowledgment frame bit set for messages that this unit can deal with.
 * [ ] Acknowledgment option by sending back the crc checksum.
