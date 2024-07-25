@@ -48,6 +48,8 @@ so:  3+32+4+1+1+1+7 = 49, or 42 not counting the 7 at end.
 So minimum number of bits for a message is 20 with no date and not waiting for end of frame.
 ```
 
+#### Maximum consecutive bits of the same value
+
 * [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
 
 * CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
@@ -55,14 +57,20 @@ So minimum number of bits for a message is 20 with no date and not waiting for e
 * The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 * At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
 
+### Minimal needed to work for controlling lights with switches and temp.
+
 * [x] Send a simple command with 0 or 1 byte of data(with out CRC or handling higher priority incoming messages)
-* [ ] handle the rest of the data lengths.
+* [x] handle the rest of the data lengths. Tested with 0,1,2 bytes of data.
 * [x] Implement crc
 * [ ]   each unit on the line will pull the Ack bit low on CRC fail
 * [ ] Add an additional Ack bit for units that can handel a message.
 * [ ]   Acknowledgment frame bit set for messages that this unit can deal with.
 * [ ] Acknowledgment option by sending back the crc checksum.
 * [ ] Maybe add some more of the CAN error checking in the 7 bit end frame.
+* [ ] At the min if you send messages to fast after each other the reviving part messes up.
+* * [ ] TODO: Need to add code to check for line free before sending code. This kind of needs [Maximum consecutive bits](#maximum-consecutive-bits-of-the-same-value)
+* * [ ] TODO: Maybe speed up receiving code and make sure it receives all the message frames so the receiving function don't return while the message ending part of the frame is still being send for example
+* * [ ] TODO Add code to try and make sure we don not start receiving a message in the middle of a frame.
 
 ### Read bus
 

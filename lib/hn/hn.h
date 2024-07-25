@@ -14,9 +14,18 @@
  * 5: TODO Maybe do checksums
  * 6: Todo: should probably use CAN style, add a inverted bit if long sequence of high or low bits instead of relying on parity bit.
  */
-
-#include <Arduino.h>
 #include <circular_buf.h>
+#ifndef noMcu_buildflag
+#include <Arduino.h>
+
+#else
+#include <cstdint>
+typedef uint8_t byte;
+typedef uint16_t word;
+typedef uint8_t boolean;
+#define lowByte(w) ((uint8_t)((w) & 0xff))
+#define highByte(w) ((uint8_t)((w) >> 8))
+#endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
 #define MaxInUseHigh
@@ -27,7 +36,7 @@
 #else
 #define SOFValue 0  // else pull low for 1 bit.
 #endif
-#define maxDataSize 4         // the maximum data frame size in bytes, the is separate for the message frame.
+#define maxDataSize 8         // the maximum data frame size in bytes, the is separate for the message frame.
 #define maxMessageSize 1      // The maximum massage size in bytes, TODO: can only be 1 at the min.
 #define _pinReg PIND          // read PIND for pins D0 to D7 states
 #define _pinMask 0b00000100;  // Mask for third pin in reg. i.e. on PIND mask for D2
@@ -75,14 +84,21 @@ class SlowHomeNet {
   byte nextIndex() { return buf.nextIndex(); }
 
   //+++++++++++++++++ Send ++++++++++++++++++++++++++++++++++++++++
+  byte setDataArray(byte command);
   byte setDataArray(byte command, byte data);
   byte setDataArray(byte command, word data);
   byte setDataArray(byte command, uint32_t data, byte l);
   byte sendHelper(byte RTR, byte mLen, byte dLen);
+  byte send(byte command);
   byte send(byte command, byte data);
   byte sendW(byte command, word data);
 
   //+++++++++++++++++++++++++ Misc ++++++++++++++++++++++++++++++++++++
+
+  byte getDataLen(byte l);
+  byte getMessageLen(byte l);
+  byte getMessageDataLen(byte l);
+  byte getLenCode(byte mLen, byte dLen);
 
   byte Crc4(uint8_t *addr, uint8_t len);
   byte Crc4buf(uint8_t i);
@@ -190,18 +206,14 @@ class SlowHomeNet {
   boolean checkPinInput();
   byte readBits(byte bits);
 
-  byte getPulseNo(byte pulses, byte level);
-  byte getDataLen(byte l);
-  byte getMessageLen(byte l);
-  byte getMessageDataLen(byte l);
-  byte getLenCode(byte mLen, byte dLen);
+  // byte getPulseNo(byte pulses, byte level);
 
   byte pushDataLen(byte l, byte RTR);
   byte pushMessageId(byte m);
 
   byte sendStartOfFrame();
   byte sendRTR(byte v);
-  byte sendDataLen(byte v, byte);
+  byte sendDataLen(byte v);
   byte sendMessageId(byte v);
   byte sendData(byte v);
   word sendData(word v);

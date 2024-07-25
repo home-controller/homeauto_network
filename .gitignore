@@ -5,6 +5,8 @@
 .vscode/ipch
 *.vscode/extensions*
 *~
+*.a
 get-platformio.py
 doc/
+tools/
 Doxyfile.bak

@@ -29,7 +29,7 @@
 #include <defs.h>
 // #include "../../libraries/defs/src/defs.h"
 #include <gpioSwitchInput.h>
-#include "hn.h"
+#include <hn.h>
 /* Including the watchdog timer header file. */
 #include "/home/jmnc2/.platformio/packages/toolchain-atmelavr/avr/include/avr/wdt.h"
 
@@ -219,58 +219,60 @@ void loop() {
   /// really need to
   wdt_disable();
 
-  /*  // debug loop______________________#=========================
-   byte a_l;  // pin changes stored.
-   unsigned long
-       a[20];  // for storing pin changes in millis for for the message. although the is a max of 59bit some are always at a set value and only use 2 date bytes max for now.
-   byte a2[20];
-   boolean pinLevel, lastLev;
-   // Serial.print('.');
-   byte p = hNet.getPinNo();
-   pinLevel = digitalRead(p);
-   if (pinLevel == LOW) {
-     lastLev = LOW;
-     a_l = 0;
-     sendCTime = micros();
-     sendLastTime = sendCTime;
-     unsigned long fistTime;
-     fistTime = sendCTime;
-     while ((sendCTime - fistTime) < 1000000)  // Check for about 1 second.
-     {
-       pinLevel = digitalRead(p);
-       if (lastLev != pinLevel) {
-         if (a_l <= 20) {
-           a[a_l] = sendCTime - sendLastTime;
-           a2[a_l] = lastLev;
-           sendLastTime = sendCTime;
-         }
-         lastLev = pinLevel;
-         if (a_l < 255) a_l++;
-       }
-       sendCTime = micros();
-     }
-     Serial.print(F("Pin toggled between low/high "));
-     Serial.print(a_l + 1);
-     Serial.println(F(" times"));
-     if (a_l >= 1) {
-       Serial.print(F("The first pull LOW pulse lasted approx "));
-       Serial.print(a[0]);
-       Serial.print(F(" microseconds, Microseconds for subsequent changes: "));
-       byte i;
-       for (i = 1; ((i <= a_l) and (i < 20)); i++) {
-         if (i > 1) Serial.print(", ");
-         Serial.print(a[i]);
-       }
-       Serial.println();
-     }
-   } */
+#ifdef basicDebug  // direct timing vi decoding fuctions.
+  // debug loop______________________#=========================
+  byte a_l;  // pin changes stored.
+  unsigned long
+      a[20];  // for storing pin changes in millis for for the message. although the is a max of 59bit some are always at a set value and only use 2 date bytes max for now.
+  byte a2[20];
+  boolean pinLevel, lastLev;
+  // Serial.print('.');
+  byte p = hNet.getPinNo();
+  pinLevel = digitalRead(p);
+  if (pinLevel == LOW) {
+    lastLev = LOW;
+    a_l = 0;
+    sendCTime = micros();
+    sendLastTime = sendCTime;
+    unsigned long fistTime;
+    fistTime = sendCTime;
+    while ((sendCTime - fistTime) < 1000000)  // Check for about 1 second.
+    {
+      pinLevel = digitalRead(p);
+      if (lastLev != pinLevel) {
+        if (a_l <= 20) {
+          a[a_l] = sendCTime - sendLastTime;
+          a2[a_l] = lastLev;
+          sendLastTime = sendCTime;
+        }
+        lastLev = pinLevel;
+        if (a_l < 255) a_l++;
+      }
+      sendCTime = micros();
+    }
+    Serial.print(F("Pin toggled between low/high "));
+    Serial.print(a_l + 1);
+    Serial.println(F(" times"));
+    if (a_l >= 1) {
+      Serial.print(F("The first pull LOW pulse lasted approx "));
+      Serial.print(a[0]);
+      Serial.print(F(" microseconds, Microseconds for subsequent changes: "));
+      byte i;
+      for (i = 1; ((i <= a_l) and (i < 20)); i++) {
+        if (i > 1) Serial.print(", ");
+        Serial.print(a[i]);
+      }
+      Serial.println();
+    }
+  }
+#else
   Serial.println(F("calling receiveMonitor"));
   r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
   wdt_enable(WDTO_8S);
   if (r == 0) {
     byte a[5], rtr, dl, ml;
     Serial.print(F("Message received with no error(0)"));
-    //Serial.print(r);
+    // Serial.print(r);
     Serial.print(F(", buffer len: "));
     Serial.println(hNet.recCount());
     Serial.println(F("calling getFromBuf"));
@@ -299,19 +301,27 @@ void loop() {
     Serial.print(F("Error receiving message, error = "));
     Serial.println(r);
   }
-#endif
+#endif  // basicDebug else end.
+#endif  // Receive end
 #ifdef send_buildflag
   sendCTime = millis();
   if ((sendCTime - sendLastTime) >= 15000) {
     static byte sc = 0;
     sendLastTime = sendCTime;
     delay(2000);
-    sc = hNet.send(1, (byte)7);
-    byte sc2 = hNet.sendW(2, 0xFFFF);
+    sc = hNet.send(126, (byte)7);
+    delay(2000);
+    byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
+    delay(2000);
+    byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
+
     Serial.print(F("Message sent "));
     Serial.print(sc);
     Serial.print(F(", Second Message sent "));
     Serial.print(sc2);
+    Serial.print(F(", Third Message sent "));
+    Serial.print(sc3);
+
     if (sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
     Serial.println();
   }

@@ -9,7 +9,7 @@
  * calculating CRC checksums, and managing network communication.
  */
 
-#include "hn.h"
+#include <hn.h>
 /*
  * slow Home Network.
  * 1: The line is pullup so to send data first pull it low.
@@ -29,10 +29,12 @@
  * This will work like a very cut-down CAN bus with no need for the extra
  * modules. Hopefully. :) very loosely
  */
+
 void SlowHomeNet::attachIntToPin(byte pin) {}
 
 SlowHomeNet::SlowHomeNet(byte pin) {
   networkPin = pin;
+#ifndef noMcu_buildflag
   pinMode(pin,
           INPUT_PULLUP);  // should add some external resistor to make stronger pullup. be safer to use 2 pins and pull down through a transistor, easy to replace if you shore
                           // the line high. Would one of the solid state fuses be fast enough to save the pin?
@@ -43,6 +45,7 @@ SlowHomeNet::SlowHomeNet(byte pin) {
   port_IO_reg = portOutputRegister(pin_port);  // PORTB, PORTC, PORTD etc. registers for bi-directional I/O
   CurrentTime = micros();
   lastTime = CurrentTime - bitPulseLength;
+#endif
 }
 
 void SlowHomeNet::exc() {
@@ -73,6 +76,7 @@ void SlowHomeNet::exc() {
  * @return byte. 0 for success or else the bit number the collision was on.
  */
 byte SlowHomeNet::sendBits(byte bits, byte numberOfBits) {
+#ifndef noMcu_buildflag
   byte x, y;
   for (x = numberOfBits; x > 0; x--) {
     if (((bits >> (x - 1)) bitand 0b1) == 1) {
@@ -93,6 +97,7 @@ byte SlowHomeNet::sendBits(byte bits, byte numberOfBits) {
   }
   // if (!checkPinInput()) pinMode(networkPin, INPUT_PULLUP);
   return 0;
+#endif
 }
 
 /**
@@ -161,7 +166,7 @@ byte SlowHomeNet::sendRTR(byte v) {
 /// @brief Send the code for the length of data being sent.
 /// @param v The data length code.
 /// @return the code sent on the bus, not necessarily form this node.
-byte SlowHomeNet::sendDataLen(byte v, byte RTR = 0) {
+byte SlowHomeNet::sendDataLen(byte v) {
   byte sb = sendBits(v, DataLengthBitsLn);
   if (sb > 0) {
     // As we lost out to a higher priority message we are in receiving mode now.
@@ -170,7 +175,6 @@ byte SlowHomeNet::sendDataLen(byte v, byte RTR = 0) {
     x = 3 - sb;
     bitSet(v, x);
     byte r = readBits(DataLengthBitsLn - sb);
-    //pushDataLen(r bitor v, RTR);
     return (r bitor v);
   } else {
     return v;
@@ -245,11 +249,17 @@ byte SlowHomeNet::sendEndOfFrame() {
   endOfFrameError = 0;
   return 0;
 }
-
+/// @brief Store a byte command in the dataArray[] before calling send. The command byte starts at dataArray[0]
+/// @param command The 1 byte message ID to be stored in dataArray[0]
+/// @return 0, The code for the number of bytes stored(1 message byte).
+byte SlowHomeNet::setDataArray(byte command) {
+  dataArray[0] = command;
+  return 0;
+}
 /// @brief Store a byte command and data in the dataArray[] before calling send. The data byte is at dataArray[1]
 /// @param command The 1 byte message ID to be stored in dataArray[0]
 /// @param data This needs to be of type byte as function overloading is used.
-/// @return 1, The number of bytes stored.
+/// @return 1, The code for the number of bytes stored(1 message and 1 data).
 byte SlowHomeNet::setDataArray(byte command, byte data) {
   dataArray[0] = command;
   dataArray[1] = data;
@@ -258,12 +268,14 @@ byte SlowHomeNet::setDataArray(byte command, byte data) {
 
 /// @brief Store 1 byte message and 2 bytes in the dataArray before calling send. High order byte at dataArray[0]
 /// @param data The data to store to then send. This needs to be of type byte as function overloading is used.
-/// @return 2, The number of bytes stored.
+/// @return 2: The code for the number of bytes stored(1 message and 2 data).
 byte SlowHomeNet::setDataArray(byte command, word data) {
-  dataArray[0] = command;
-  dataArray[1] = highByte(data);
-  dataArray[2] = lowByte(data);
-  return 2;
+  if (sizeof(dataArray) >= 3) {
+    dataArray[0] = command;
+    dataArray[1] = highByte(data);
+    dataArray[2] = lowByte(data);
+    return 2;
+  } else return 0;
 }
 
 /// @brief Store up to 4 bytes in the dataArray before calling send.
@@ -289,11 +301,23 @@ byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
 /// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
 byte SlowHomeNet::send(byte command, byte data) { return sendHelper(0, 1, setDataArray(command, data)); };
 
+/// @brief  For sending message with no data, should only be called when not already receiving a message
+/// @param command A byte Representing the command byte(or message Id) that you want to send over the network.
+/// @details It specifies the type of command or operation you want to perform. This command byte is used to communicate instructions
+/// or actions between different units on the network
+/// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
+byte SlowHomeNet::send(byte command) { return sendHelper(0, 1, setDataArray(command)); };
+
 /// @brief  Send message id and data(16 bits), should only be called when not already receiving a message
 /// @param command A byte Representing the command byte(or message Id) that you want to send over the network.
 /// @param data A word(uint16_t) of data to send.
 /// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
-byte SlowHomeNet::sendW(byte command, word data) { return sendHelper(0, 1, setDataArray(command, data)); };
+byte SlowHomeNet::sendW(byte command, word data) {
+  byte t = setDataArray(command, data);
+  // Serial.print(F("Setup array and return length code: "));
+  // Serial.print(t);
+  return sendHelper(0, 1, 2);
+};
 
 /**
  * @brief For sending message id and data packets over a network, should only be called when not already receiving a message
@@ -328,11 +352,8 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
     // Send RTR (Remote Transmission Request).
     t = sendRTR(RTR);
     if (t != RTR) {
-      byte r = readBits(DataLengthBitsLn);
-      // t = pushDataLen(r, t);
-      // if (t > 0) return t;  // No room in buffer, returning.
-      RTRLenCode = (t << 7) bitand r;
-      receiveRest(4);  // TODO: test this function.
+      RTRLenCode = (t << 7);
+      receiveRest(1);  // TODO: test this function.
       return 17;       // Received message in buffer
     }
 
@@ -407,6 +428,12 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
     /// TODO: Do more here.
     return Error_NetworkProblem;
   }
+  // Serial.print(F(", dataLenCode sent: "));
+  // Serial.print(dataLenCode);
+  // Serial.print(F(", mLen sent: "));
+  // Serial.print(mLen);
+  // Serial.print(F(", dLen sent: "));
+  // Serial.println(dLen);
   return 0;
 }
 /**
@@ -440,8 +467,8 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
   // byte readDataLenField = RTRLenCode; only needed for debugging
   mLen = getMessageLen(RTRLenCode);
   dLen = getDataLen(RTRLenCode);
-  byte mLenBits = mLen << 3;// length in bits.
-  byte dLenBits = dLen << 3;// length in bits.
+  byte mLenBits = mLen << 3;  // length in bits.
+  byte dLenBits = dLen << 3;  // length in bits.
   // get any remaining message ID  bits
   if (bitPos < (4 + mLenBits)) {
     if (bitPos > 4) {  // If already read some of the Message ID field then finish any part byte and setup to read the rest.
@@ -469,7 +496,7 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
       t = mLen;                                        // Where the first byte of data is stored in the array.
     }
     for (i = t; i < (mLen + dLen); i++) {
-      //if (i > (1)) Serial.print(F("\n\r Error in for loop(get data)"));
+      // if (i > (1)) Serial.print(F("\n\r Error in for loop(get data)"));
       r = readBits(8);
       dataArray[i] = r;
     }
@@ -512,8 +539,11 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
   // Serial.print(et - st);
   // Serial.print(F(", RTR bit: "));
   // Serial.print(rtrBit, BIN);
-   Serial.print(F("\n\r RTRLenCode: "));
-   Serial.println(RTRLenCode, BIN);
+  // Serial.print(F("\n\r RTRLenCode: "));
+  // Serial.print(RTRLenCode, BIN);
+  // Serial.print('[');
+  // Serial.print(RTRLenCode);
+  // Serial.println(']');
   // Serial.print(F(", Message len: "));
   // Serial.print(mLen, BIN);
   // Serial.print(F(", Data len: 0b"));
@@ -592,7 +622,8 @@ boolean SlowHomeNet::getNetwork() {
 
 /// @brief Convert data length code to data length in bytes, this don't count the message id.
 /// @param l Length code, only the 3 lower bit are used.
-/// @return Length in bytes, shift left 3 to get bits
+/// @return Length in bytes, shift left 3 to get bits. Max bytes of data is 4 bytes.
+/// @details the space in the frame could be up to bytes but limiting to not hog line
 byte SlowHomeNet::getDataLen(byte l) {
   l = l bitand 0b111;  // the length code can also have the RTR in the high bit.
   if (l <= 2) return l;
@@ -603,13 +634,17 @@ byte SlowHomeNet::getDataLen(byte l) {
 
 /// @brief Convert data length code to message id length in bytes, this don't count the data bytes.
 /// @param l Length code, only the 3 lower bit are used.
-/// @return Length in bytes, shift left 3 to get bits. So far should alway be 1.
+/// @return Length in bytes, shift left 3 to get bits. So far should always be 4 or less.
 byte SlowHomeNet::getMessageLen(byte l) {
+  l >>= 3;
   l = l bitand 0b111;  // the length code can also have the RTR in the high bit.
-  if (l <= 3) return 1;
+  if (l <= 0) return 1;
+  if (l <= 1) return 2;
+  if (l <= 2) return 4;
+  // if (l <= 3) return 8;
 
   // error undefined for code greater than 3, return max size.
-  return 1;
+  return 4;
 }
 
 /// @brief Convert data length code to message id + data, length in bytes.
@@ -622,14 +657,30 @@ byte SlowHomeNet::getMessageDataLen(byte l) { return (getMessageLen(l) + getData
 /// @param dLen The data length;
 /// @return The length code. If no code to fit params then return Max length.
 byte SlowHomeNet::getLenCode(byte mLen, byte dLen) {
-  if (mLen == 1) {
-    if (dLen <= 3)  // 4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
-      return dLen;
-    else if (dLen == 3) return 4;
-  }
-  // TODO: will add other codes as needed.
-  //  error undefined for code greater than 3, return max size.
-  return 4;
+  byte dLenPart, mLenPart;
+
+  if (dLen <= 0) dLenPart = 0;
+  else if (dLen <= 2) dLenPart = dLen;
+  else if (dLen <= 4) dLenPart = 3;
+  else if (dLen <= 8) dLenPart = 4;
+  else if (dLen <= 16) dLenPart = 5;
+  else if (dLen <= 32) dLenPart = 6;
+  else if (dLen <= 64) dLenPart = 7;
+  else dLenPart = 7;
+
+  if (mLen <= 1) mLenPart = 0;
+  else if (mLen <= 2) mLenPart = 1;
+  else if (mLen <= 4) mLenPart = 2;
+  else if (mLen <= 8) mLenPart = 3;
+  else if (mLen <= 16) mLenPart = 4;
+  else if (mLen <= 32) mLenPart = 5;
+  else if (mLen <= 64) mLenPart = 6;
+  else mLenPart = 6;
+
+  // Although the above handles up to 64 bytes of message ID + another 64 bytes of data lets limit it to 2 bytes of message Id pluse 4 bytes of Data.
+  if (mLenPart > 2) mLenPart = 2;
+  if (dLenPart > 3) dLenPart = 3;
+  return ((mLenPart << 3) bitor dLenPart);
 }
 
 /// @brief Get the first message stored in the buffer, this will remove this message from the buffer.
@@ -863,9 +914,10 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
       return i;
     } else {
       byte dLen = getMessageDataLen(RTRLenCode);
+#ifdef hn_debug
       Serial.print(F("\n\rgetMessageDataLen(): "));
       Serial.println(dLen);
-
+#endif
       for (i = 0; i < dLen; i++) { buf.push(dataArray[i]); }
     }
 
@@ -878,7 +930,8 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
 }
 
 void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
-  // low bit at start.
+// low bit at start.
+#ifndef noMcu_buildflag
   unsigned long t;
   word mod_t;
   byte state = _pinReg & _pinMask;  // LOW = 0 but HIGH value will = the mask not 1.
@@ -929,6 +982,7 @@ void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
     }
   }
   lastState = state;
+#endif
 }
 
 //---------------------------------------------------- Write ----------------------------------
