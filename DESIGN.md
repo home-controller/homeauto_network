@@ -6,10 +6,10 @@
 
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 
-2. bits[1 Maybe more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. Be a good idea to add a var for number of bits here, to make checking each time through main loop more reliable. Maybe add an option for high bit(or even 1/2 bit) after the pull low, to help with timings as if checking in the main loop for example might not know when the pull low started.
+2. bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started.
 3. bits[1] RTR (Remote Transmission Request).
-3.1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
-should we add a bit to set when we are sending the message back to say we handled it here.
+    1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
+    2. We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would not longer work.
 4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
 5. bits[8] command id. Maybe this should be moved down 2 rows?
 6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
@@ -25,13 +25,16 @@ should we add a bit to set when we are sending the message back to say we handle
 |SF|R|ccc|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|eeeeeee|
 |01|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|7 high | number of bits.
 |01|?|1??|????????|????????????????|????|1|?|1|1111111| the bits value.
-Max 42 bits high? 
 
-How did I get that? for data R is low so after that:
-3(data length)+32(data)+4(CRC maybe with the right value of id(can't be bothered working it out))
-+ 1 for (CRC delimiter) + 1 (Ack bit)  + 1 (Ack delimiter) + 7 (end of frame bits) well Then it just stays in the default high unused line state.
+Max at one level is 5 after that 1 bit is added at the opposite level but this can add to the length of time needed to send a frame. 
 
-so:  3+32+4+1+1+1+7 = 49, or 42 not counting the 7 at end.
+By default the minimum bit length is:
+2 for start of frame, 3 for length, 8 for message id, 0 data, 4+1 CRC, 1+1 ack & 7 end of frame. Also plan to add 2 more for message handled.
+so:
+2+3+8+(4+1)+(1+1)+7 = 27 but if there are 5 bits of the same value in a row more will be added.(if you don't care about the EOF and maybe ack would be 18-20bits)
+
+for max bit we have the above + any data bits
+so:  27+ = 49, or 42 not counting the 7 at end.
 
 So minimum number of bits for a message is 20 with no date and not waiting for end of frame.
 ```

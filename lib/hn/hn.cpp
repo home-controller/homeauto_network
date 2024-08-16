@@ -60,7 +60,7 @@ void SlowHomeNet::exc() {
 }
 
 /**
- * @brief Send bits on the home network IO pin.
+ * @brief Send bits on the home network IO pin, stop sending on line collision.
  *
  * @details Send bits while checking for line contention. High is a resistor pullup and
  * collision is detected when another unit pulls low while we are trying to send
@@ -225,7 +225,7 @@ byte SlowHomeNet::sendCRC(byte v) {  // this shouldn't fail as all the date is a
 
 /// @brief  Send the Ack bit plus the Ack delimiter bit.
 /// @param v 1 or 0 for the ack bit, 0 indicates crc error.
-/// @return 0 for no Error, 1 for line pulled low, indicating some unit had a receiving error.
+/// @return 0 for v successful sent, 1 for line pulled low when v = 1, indicating some other unit had a receiving error.
 byte SlowHomeNet::sendAck(byte v) {
   byte r = sendBits(v, 1);
   sendBits(1, 1);
@@ -249,6 +249,7 @@ byte SlowHomeNet::sendEndOfFrame() {
   endOfFrameError = 0;
   return 0;
 }
+
 /// @brief Store a byte command in the dataArray[] before calling send. The command byte starts at dataArray[0]
 /// @param command The 1 byte message ID to be stored in dataArray[0]
 /// @return 0, The code for the number of bytes stored(1 message byte).
@@ -256,6 +257,7 @@ byte SlowHomeNet::setDataArray(byte command) {
   dataArray[0] = command;
   return 0;
 }
+
 /// @brief Store a byte command and data in the dataArray[] before calling send. The data byte is at dataArray[1]
 /// @param command The 1 byte message ID to be stored in dataArray[0]
 /// @param data This needs to be of type byte as function overloading is used.
@@ -284,7 +286,7 @@ byte SlowHomeNet::setDataArray(byte command, word data) {
 /// @return The number of bytes stored.
 byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
   byte x;
-  if (l > 4) l = 4;
+  if (l > maxDataSize + maxMessageSize) l = maxDataSize + maxMessageSize;
   dataArray[0] = command;
   for (x = (l + 1) - 1; x >= 0; x--) {  // the + 1 is for the command length in bytes
     dataArray[x] = ((byte)(data bitand 0xFF));
@@ -411,10 +413,12 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
       // If sent is different it means another unit sent the same message but somehow we received a different CRC.
       // Or there is some other line error or code bug.
       //  TODO we could check for delimiter error here.
+      sendEndOfFrame();
       return Error_AckError;
     } else {
       sent = sendBits(0b1, 1);
       if (sent != 0) {  // Another unit signaled a receive error.
+        sendEndOfFrame();
         return Error_AnotherUnit_AckError;
       }
       sent = sendBits(0b1, 1);  // TODO Not bothering to check for delimiter errors
@@ -448,10 +452,10 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
  * @return Byte, 0 for no errors else an error code, see Error_ code #defines in header file.
  */
 byte SlowHomeNet::receiveRest(byte bitPos) {
-  byte r, crc, t, i;
+  byte r, crc, t, i, ack, return_error;
   byte mLen;  // length in bytes.
   byte dLen;  // length in byt.
-
+  return_error = 0;
   // get RTR bit if needed. RTR = (Remote Transmission Request).
   if (bitPos == 0) RTRLenCode = readBits(1) << 7;  // RTRLenCode is a private class var.
   // byte rtrBit = RTRLenCode;
@@ -506,16 +510,21 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
   if (bitPos <= (4 + ((mLenBits + dLenBits) >> 3))) crc = readBits(4);
   else {
     Serial.print(F(" Error with CRC read. shouldn't' get here"));
-    // TODO: implement part CRC read if needed.
+    return_error = Error_CRCError;  // should only happen if we send the same message + data as another but end up with a different CRC
+                                    // So line error or bug in code.
   }
   byte crcCalc = Crc4(dataArray, mLen + dLen);
   readBits(1);  // CRC delimiter. Delimiter is high.
                 // if (Crc4buf(bufSI) == crc) {
   if (crc == crcCalc) {
-    // We could acknowledge here? If we are going to handle this message
-    // or maybe if the crc checks out if we decide to send back a message when we handle a command.
-    sendAck(1);
+    // Check if anyone failed CRC while also waiting for the 2 bits to be sent.
+    ack = sendAck(1);
+    if (ack != 0) {  // another unit had CRC fail on receive.
+      return_error = Error_AckError;
+    }
   } else {
+    sendAck(0);
+    return_error = Error_AckError;
     Serial.print(F("\n\rFail crc. crc = 0b"));
     Serial.print(crc, BIN);
     Serial.print('(');
@@ -524,9 +533,6 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
     Serial.print(F(", crcCalc = "));
     Serial.print(crcCalc, BIN);
     Serial.print(", ");
-    sendAck(0);
-    // TODO: uncomment after debugging
-    // return Error_AckError;
   }
 
   // bufSI = buf.nextIndex();
@@ -563,7 +569,7 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
   // }
   // Serial.print(F(", crc: "));
   // Serial.print(crc);
-  return 0;
+  return return_error;
 }
 
 /**
@@ -610,7 +616,7 @@ boolean SlowHomeNet::getNetwork() {
   unsigned long timeOutStart;
   timeOutStart = millis();
   do {
-    if (monitorLinePinForChange(maxInuseHigh + 1, 1) == false) {
+    if (monitorLinePinForChange(MaxInUseHighBits, 1) == false) {
       digitalWrite(networkPin, LOW);
       delayMicroseconds(bitPulseLength - DigitalWriteTime);
       // pinMode(networkPin, INPUT_PULLUP); // why did I ever add this?
@@ -628,6 +634,10 @@ byte SlowHomeNet::getDataLen(byte l) {
   l = l bitand 0b111;  // the length code can also have the RTR in the high bit.
   if (l <= 2) return l;
   if (l == 3) return 4;
+  if (l == 4) return 8;
+  if (l == 5) return 16;
+  if (l == 6) return 32;
+  if (l == 7) return 64;
   // error undefined for code greater than 3, return max size.
   return 4;
 }
@@ -658,9 +668,10 @@ byte SlowHomeNet::getMessageDataLen(byte l) { return (getMessageLen(l) + getData
 /// @return The length code. If no code to fit params then return Max length.
 byte SlowHomeNet::getLenCode(byte mLen, byte dLen) {
   byte dLenPart, mLenPart;
+  if (dLen > maxDataSize) dLen = maxDataSize;
+  if (mLen > maxMessageSize) mLen = maxMessageSize;
 
-  if (dLen <= 0) dLenPart = 0;
-  else if (dLen <= 2) dLenPart = dLen;
+  if (dLen <= 2) dLenPart = dLen;
   else if (dLen <= 4) dLenPart = 3;
   else if (dLen <= 8) dLenPart = 4;
   else if (dLen <= 16) dLenPart = 5;

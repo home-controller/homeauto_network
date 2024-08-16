@@ -28,7 +28,7 @@ typedef uint8_t boolean;
 #endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
-#define MaxInUseHigh
+#define MaxInUseHighBits 7 // This is the value after bit stuffing after 5 consecutive bits of same value is implemented. The 7 is for the end of frame 7 high bits.
 #define CRCError
 #define SOFBits 2  // The number of SOF (Start of Frame) bits.
 #if SOFBits > 1
@@ -36,8 +36,9 @@ typedef uint8_t boolean;
 #else
 #define SOFValue 0  // else pull low for 1 bit.
 #endif
-#define maxDataSize 8         // the maximum data frame size in bytes, the is separate for the message frame.
-#define maxMessageSize 1      // The maximum massage size in bytes, TODO: can only be 1 at the min.
+/// 
+#define maxDataSize 8         // the maximum data frame size in bytes, the is separate for the message frame. Can only be 0,1,2,4,8,16,32 byte
+#define maxMessageSize 1      // The maximum massage size in bytes.
 #define _pinReg PIND          // read PIND for pins D0 to D7 states
 #define _pinMask 0b00000100;  // Mask for third pin in reg. i.e. on PIND mask for D2
 #define _hn_int_pin 2
@@ -48,6 +49,7 @@ typedef uint8_t boolean;
 #define Error_NoRoomInBuffer 3  //  3,  Not enough or no room to store the info needed in the buffer.
 #define Error_AckError 16       //  16, A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
 #define Error_LostPriority 17   //  17, Higher priority message being sent, received in buffer.
+#define Error_CRCError 33 // CRC received not the same as the 1 from calculating it from the received message+data.
 
 ///  18, could be network SOF mismatch on different units,
 /// or network down or not reading all incoming messages properly

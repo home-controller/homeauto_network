@@ -1,12 +1,12 @@
 # HomeAuto Network
 
-## Still in Afa, unfinished code
+## Still in Beta, part finished code
 
 This is a slow send/receive network(no master/slave) with collision detection and handling. A bit like CAN but way slower and cut-down and no need for extra hardware.
 
 Collision detection works like 1-wire and CAN with the smallest number having priority and not even knowing there was a collision(So no speed loss), the other unit will switch to reading mode and read the message. It can then try to send the message at a later time.
 
-This is message based like CAN so there is no unit address but rather a message is sent for say light switch 7 just switch on. Then maybe the unit responsible for turning on the light will receive the message and turn it on. But there could also be a unit in between that decides what to do and than sends out messages to turn on more lights and/or sends MQTT messages etc.
+This is message based like CAN so there is no unit address but rather a message is sent for example for say light switch 7 just switch on. Then maybe the unit responsible for turning on the light will receive the message and turn it on. But there could also be a unit in between that decides what to do and than sends out messages to turn on more lights and/or sends MQTT messages etc.
 
 The idea is for a wired basic and slow network so you do not have to worry to much about end reflection and having different HIGH and LOW states at different points on the line/wire. Being slow should also help with any timing problems and be more tolerant of other stuff like web pages or mqtt hogging the processor and/or interrupts
 
@@ -25,15 +25,17 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 * [x] Implement crc
 * * [x] Each unit on the line will pull the Ack bit low on CRC fail
 * * * [ ] This still needs testing.
-* [ ] On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Add a inverted bit if 5 bits are at the same level(CAN uses 5) of high or low.
+* [ ] Maximum consecutive bits: On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Add a inverted bit if 5 bits are at the same level(CAN uses 5) of high or low.
 
 ### Current problems
 
 1. [ ] Sending 2 messages without a delay between them messes up the received message
-2. [ ] TODO check the frame leadout is being sent properly
-  i. [ ] After adding the code to make sure no we can't have 5 bits in a row of the same value then implement check for line free.
-.. 3 [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
-
+2. [x] TODO check the frame EOF is being sent properly
+    1. [ ] After adding the code to make sure we can't have 5 bits in a row of the same value then implement check for line free.
+    2. [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
+3. [ ] Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin. There is a diodes on most MCUs that connects all the IO pins to the power pin.
+    * Maybe or at least have the option to use 2 IO pins, 1 with a large resistor to read the line level and another with a transistor to pull the line Low for sending messages. This might also work for level shifting.
+    * Or could maybe use an IO buffer but at that point it may be better and cheaper to just use a CAN transceiver chip.
 
 ### Planning to add
 
@@ -42,7 +44,7 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 * [ ] Acknowledgment option by sending back the crc checksum.
 * [ ] Maybe add some more of the CAN error checking in the 7 bit end frame.
 * [ ] At the min if you send messages to fast after each other the reviving part messes up.
-* * [ ] TODO: Need to add code to check for line free before sending code. This kind of needs [Maximum consecutive bits](#maximum-consecutive-bits-of-the-same-value)
+* * [ ] TODO: Need to add code to check for line free before sending code. This kind of needs ***"Maximum consecutive bits"*** from [Minimal needed to work](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
 * * [ ] TODO: Maybe speed up receiving code and make sure it receives all the message frames so the receiving function don't return while the message ending part of the frame is still being send for example
 * * [ ] TODO Add code to try and make sure we don not start receiving a message in the middle of a frame.
 
