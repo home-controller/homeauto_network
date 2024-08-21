@@ -33,7 +33,9 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 2. [x] TODO check the frame EOF is being sent properly
     1. [ ] After adding the code to make sure we can't have 5 bits in a row of the same value then implement check for line free.
     2. [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
-3. [ ] Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin. There is a diodes on most MCUs that connects all the IO pins to the power pin.
+3. [ ] Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin.
+
+    This is because there is a diodes on most MCUs that connects all the IO pins to the power pin.
     * Maybe or at least have the option to use 2 IO pins, 1 with a large resistor to read the line level and another with a transistor to pull the line Low for sending messages. This might also work for level shifting.
     * Or could maybe use an IO buffer but at that point it may be better and cheaper to just use a CAN transceiver chip.
 
