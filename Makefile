@@ -1,3 +1,6 @@
+# Use zsh for shell commands
+SHELL := /bin/bash
+
 # Tool definitions
 CC = gcc -H
 CXX = g++ -H
@@ -81,11 +84,18 @@ edit:
 list:
 	pio device list
 
-#Build docs
-.PHONY: docs
-docs:
+#Build docs, this takes a long time!
+.PHONY: build_docs
+build_docs:
 	doxygen -u
 	doxygen
+	./doc.sh
+
+#show docs in firefox
+.PHONY: docs
+docs:
+	./doc.sh
+
 
 #Add udev rules
 .PHONY: udev
@@ -98,3 +108,26 @@ udev:
 	@echo "Triggering udev..."
 	@sudo udevadm trigger || { echo "Failed to trigger udev."; exit 1; }
 	@echo "Finished."
+
+.PHONY: inc_version
+# Define a target for incrementing the version
+inc_version:
+# Call the bash script to handle version increment
+	./src/increment_version.sh
+
+.PHONY: update_version
+update_version:
+	# Read the updated version from the version.txt file
+	$(eval VERSION := $(shell sed -n '1p' version.txt))
+	# Update the platformio.ini file with the new version
+	sed -i '/-D VERSION=/s/=.*/=$(VERSION)/' platformio.ini
+	# Update the lib/hn/hn.h file with the new version
+	sed -i 's/^\( \* @version[[:space:]]\+\).*/\1$(VERSION)/' lib/hn/hn.h
+	# Update the Doxyfile file with the new version
+	sed -i 's/^\(PROJECT_NUMBER[[:space:]][[:space:]]*=\).*/\1 $(VERSION)/' Doxyfile
+	# Update the 'library.properties' file with the new version
+	sed -i 's/^\(version=\).*/\1 $(VERSION)/' library.properties
+
+.PHONY: incV
+incV: inc_version update_version
+

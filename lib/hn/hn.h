@@ -1,3 +1,13 @@
+/**
+ * @file hn.h
+ * @author Joseph (you@domain.com)
+ * @brief 
+ * @version 0.1.1
+ * @date 2024-08-16
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #ifndef _hn_h
 #define _hn_h
 

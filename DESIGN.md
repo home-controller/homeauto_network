@@ -1,4 +1,4 @@
-# HomeAuto Network
+# Design document
 
 ## Design
 
