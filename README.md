@@ -29,15 +29,21 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 
 ### Current problems
 
-1. [ ] Sending 2 messages without a delay between them messes up the received message
-2. [x] TODO check the frame EOF is being sent properly
+1. Sending 2 messages without a delay between them messes up the received message
+2. TODO check the frame EOF is being sent properly(done)
     1. [ ] After adding the code to make sure we can't have 5 bits in a row of the same value then implement check for line free.
     2. [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
-3. [ ] Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin.
+3. Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin.
 
     This is because there is a diodes on most MCUs that connects all the IO pins to the power pin.
-    * Maybe or at least have the option to use 2 IO pins, 1 with a large resistor to read the line level and another with a transistor to pull the line Low for sending messages. This might also work for level shifting.
-    * Or could maybe use an IO buffer but at that point it may be better and cheaper to just use a CAN transceiver chip.
+
+    Hence it is kind of hard to fix in an ideal way. So probable best to have different options depending on the circumstance:
+    1. Live with the fact that a power problem with 1 unit is likely to bring the whole network down.
+    2. The option to use 2 IO pins, 1 with a large resistor to read the line level and another with a transistor to pull the line Low for sending messages. This might also work for level shifting. This should be simple on a custom PCB for example.
+    3. Maybe use an IO buffer chip but at that point it may be better and cheaper to just use a CAN transceiver chip.
+    4. Use an MCU that has level shifting GPIO pins that still work when the chip is unpowered.
+    5. Add support for repeating messages to another pin so the networks can be split up to limit the damage. I guess when using interrupts to read the IO this could be quite simple while the network is slow enough.
+    6. Guess you could also add a relay to disconnect the line until the MCU is up and running. Or even when the board has power.
 
 ### Planning to add
 
