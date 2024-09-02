@@ -32,8 +32,10 @@
 
 void SlowHomeNet::attachIntToPin(byte pin) {}
 
-SlowHomeNet::SlowHomeNet(byte pin) {
-  networkPin = pin;
+/// @brief Slow home network.
+/// @param pin The MCU pit to use.
+SlowHomeNet::SlowHomeNet(byte pin) : networkPin{pin} {
+  // networkPin = pin;
 #ifndef noMcu_buildflag
   pinMode(pin,
           INPUT_PULLUP);  // should add some external resistor to make stronger pullup. be safer to use 2 pins and pull down through a transistor, easy to replace if you shore
