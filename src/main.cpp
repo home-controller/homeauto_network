@@ -90,7 +90,7 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
   hNet.send(state, 0);
 }
 
-gpioSwitchInputC gpioIn(pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_in);
+gpioSwitchInputC gpioIn{pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_in};
 
 #define STRINGIFY_(b) #b
 #define STRINGIFY(b) STRINGIFY_(b)
@@ -155,7 +155,7 @@ void setup() {
 #endif
 #endif
 
-#ifdef OLED_I2C
+#ifdef OLED_I2C  // Setup OLed display. Currently only on receiver.
     //   display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // Address 0x3C for 128x32
     display.begin(i2c_Address, true);  // Address 0x3C default
     display.cp437(true);
@@ -309,21 +309,21 @@ void loop() {
     static byte sc = 0;
     sendLastTime = sendCTime;
     delay(2000);
-    sc = hNet.send(126, (byte)7);
-    delay(2000);
-    byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
-    delay(2000);
-    byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
+    // sc = hNet.send(126, (byte)7);
+    // delay(2000);
+    // byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
+    // delay(2000);
+    // byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
 
-    Serial.print(F("Message sent "));
-    Serial.print(sc);
-    Serial.print(F(", Second Message sent "));
-    Serial.print(sc2);
-    Serial.print(F(", Third Message sent "));
-    Serial.print(sc3);
+    // Serial.print(F("Message sent "));
+    // Serial.print(sc);
+    // Serial.print(F(", Second Message sent "));
+    // Serial.print(sc2);
+    // Serial.print(F(", Third Message sent "));
+    // Serial.print(sc3);
 
     if (sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
-    Serial.println();
+    // Serial.println();
   }
 #endif
 
