@@ -48,6 +48,8 @@ On a lower level limit the max consecutive bits of the same value sent to have m
 
 As a CAN etc. would use 2 pins(1 for RX and another for TX) option 2(use a resistor and transistor) might be the best? In fact the MCU/software shouldn't even care if you are using  resistors + transistor or and transceiver chip, presuming the chip can work at so low of network speeds.
 
+Also using 2 IO pins would allow for an interrupt to stay active on the receiving pin, might simplify things a bit.
+
 ### Planning to add
 
 * [ ] Add an additional Ack bit for units that can handel a message.

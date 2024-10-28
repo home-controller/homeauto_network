@@ -33,16 +33,20 @@ By default the minimum bit length is:
 2 for start of frame, 3 for length, 8 for message id, 0 data, 4+1 CRC, 1+1 ack
 & 7 end of frame. Also plan to add 2 more bits for message handled.
 so:
-2+3+8+(4+1)+(1+1)+7 = 27 but if there are 5 bits of the same value in a row
+2+3+8+(4+1)+(1+1)+(1+1)+7 = 29 but if there are 5 bits of the same value in a row
 more will be added.(if you don't care about the EOF and maybe ack would be
 18-20bits)
 
 for max bit we have the above + any data bits
-so:  27+ = 49, or 42 not counting the 7 at end.
+so:  20 + 32 = 52, or 45 not counting the 7 at end. Can't be bothered to work out
+how many of these can be high in a row but 52/5 gives 10 more bits also some
+data length codes may increase the id or date length even more.
 
 So minimum number of bits for a message is 20 with no date and not waiting
 for end of frame.
 ```
+
+Maybe we could use 6 bits pulled low to interrupt long low priority messages! As long as error handling is handled nicely it shouldn't even need extra code :D and we should hopefully know the message length at this point.
 
 ### Maximum consecutive bits of the same value
 
@@ -77,7 +81,7 @@ for end of frame.
 * [ ] Interrupt to start then continue with timing subsequent pin changes?
 * [ ] Alternative first interrupt sets up a timer. Could even use pin change interrupt to correct timing at guaranteed bit change points.
 * [ ] TODO: interrupt version, a way to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
-* [ ] TODO: Some can standards check the level of the pulse 87.5 percent along the pulse length, this gives any reflections/ringing time to settle, see: <http://www.bittiming.can-wiki.info/>
+* [ ] TODO: Some CAN standards check the level of the pulse 87.5 percent along the pulse length, this gives any reflections/ringing time to settle, see: <http://www.bittiming.can-wiki.info/>
 
 ## Can protocol web pages
 
@@ -119,7 +123,7 @@ If we add a resistor to the IO pin to limit the current in case of short to grou
 ## Current test circuit
 
 * Line pullup resistor = 1kΩ
-* IO pin to line protection resistor = 28Ω
+* IO pin to line resistor = 28Ω This to  protect the IO pin incase of line short etc.
 * [ ] TODO: There is a problem with backfeed trying to power the chip through the IO pin when a unit is turn off(unpowered), when using the ATmega328P(and most other chips). This means if one unit is off it pulls the line low all the time.
   * [ ] TODO: Add/Change the code to have the option to use 2 IO pins, 1 to read to line with a high enough resistor in line so it will not pull the line low when the unit is un-powered. And the other pin can be used when sending messages by pulling the line low through and transistor. N-Channel MOSFET or Opto etc.
   * [ ] TODO: While we are at it change the code so it can go high to pull the line low for an NPN transistor etc.
