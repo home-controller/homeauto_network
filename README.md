@@ -30,7 +30,7 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 ### Current problems
 
 1. Sending 2 messages without a delay between them messes up the received message
-2. TODO check the frame EOF is being sent properly(done)
+2. [x] Check the frame EOF is being sent properly(done)
     1. [ ] After adding the code to make sure we can't have 5 bits in a row of the same value then implement check for line free.
     2. [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
 3. Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin.
@@ -44,6 +44,8 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
     4. Use an MCU that has level shifting GPIO pins that still work when the chip is unpowered.
     5. Add support for repeating messages to another pin so the networks can be split up to limit the damage. I guess when using interrupts to read the IO this could be quite simple while the network is slow enough.
     6. Guess you could also add a relay to disconnect the line until the MCU is up and running. Or even when the board has power.
+
+As a CAN etc. would use 2 pins(1 for RX and another for TX) option 2(use a resistor and transistor) might be the best? In fact the MCU/software shouldn't even care if you are using  resistors + transistor or and transceiver chip, presuming the chip can work at so low of network speeds.
 
 ### Planning to add
 
