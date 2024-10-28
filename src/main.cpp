@@ -30,6 +30,7 @@
 // #include "../../libraries/defs/src/defs.h"
 #include <gpioSwitchInput.h>
 #include <hn.h>
+#include "message_ids.h"
 /* Including the watchdog timer header file. */
 #include "/home/jmnc2/.platformio/packages/toolchain-atmelavr/avr/include/avr/wdt.h"
 
@@ -87,7 +88,10 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
   Serial.print(F("Sending state on network(pin "));
   Serial.print(hNet.getPinNo());
   Serial.println(").");
-  hNet.send(state, 0);
+  // using a 1 byte message will work with up to 8 switches. So will likely also need a byte of date with the switch and mabe room id
+  hNet.send((mId_sw_comms << 4) + ((i bitand 0b111) << 1) + (state bitand 1));  /// first 4 bits the message id for switch changed,
+                                                                                /// next 3 bits switch No.
+                                                                                /// and last bit for the switch state(or/off)
 }
 
 gpioSwitchInputC gpioIn{pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_in};
