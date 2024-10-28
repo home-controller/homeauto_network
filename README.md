@@ -25,7 +25,8 @@ The idea is for a wired basic and slow network so you do not have to worry to mu
 * [x] Implement crc
 * * [x] Each unit on the line will pull the Ack bit low on CRC fail
 * * * [ ] This still needs testing.
-* [ ] Maximum consecutive bits: On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Add a inverted bit if 5 bits are at the same level(CAN uses 5) of high or low.
+* [ ] Maximum consecutive bits: \
+On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Add a inverted bit if 5 bits are at the same level(CAN uses 5) of high or low.
 
 ### Current problems
 
