@@ -297,7 +297,7 @@ byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
   return l;
 }
 
-/// @brief  For sending message id and data packets over a network, should only be called when not already receiving a message
+/// @brief  For sending message id and data packets over a network, Will wait for line to be free
 /// @param command A byte Representing the command byte(or message Id) that you want to send over the network.
 /// @details It specifies the type of command or operation you want to perform. This command byte is used to communicate instructions
 /// or actions between different units on the network
@@ -305,14 +305,14 @@ byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l) {
 /// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
 byte SlowHomeNet::send(byte command, byte data) { return sendHelper(0, 1, setDataArray(command, data)); };
 
-/// @brief  For sending message with no data, should only be called when not already receiving a message
+/// @brief  For sending message with no data, Will wait for line to be free
 /// @param command A byte Representing the command byte(or message Id) that you want to send over the network.
 /// @details It specifies the type of command or operation you want to perform. This command byte is used to communicate instructions
 /// or actions between different units on the network
 /// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
 byte SlowHomeNet::send(byte command) { return sendHelper(0, 1, setDataArray(command)); };
 
-/// @brief  Send message id and data(16 bits), should only be called when not already receiving a message
+/// @brief  Send message id and data(16 bits), will wait for line to be free
 /// @param command A byte Representing the command byte(or message Id) that you want to send over the network.
 /// @param data A word(uint16_t) of data to send.
 /// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
@@ -379,7 +379,7 @@ byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
  *
  * @param mLen default 1, Message length in bytes.
  *
- * @param dLen default 1, Data length in bytes.
+ * @param dLen default 0, Data length in bytes.
  *
  * @param lineFreeCheck default true, When true check if the line is free.
  *
@@ -400,10 +400,13 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
 
   if (lineFreeCheck == true) {
     // Check if the line is free and wait until it is with a timeout for if there is a line error etc.
-    t = checkLineFreeState(true, LineCheckTimeout);
-    if (t != 0) { return 1; }
+    t = checkLineFreeState(true, LineCheckTimeout);// returns 1 for line free
+    if (t != 1) {
+      Serial.println("Line not free");
+      return 1;
+    }
   }
-
+Serial.println("Line free, starting to send");
   if (sendStartOfFrame() == SOFValue) {  // Try to send start of frame.
 
     // Send RTR (Remote Transmission Request).
