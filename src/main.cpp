@@ -313,9 +313,9 @@ void loop() {
     static byte sc = 0;
     sendLastTime = sendCTime;
     delay(2000);
-    // sc = hNet.send(126, (byte)7);
-    // delay(2000);
-    // byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
+    sc = hNet.send(126, (byte)7);
+    delay(2000);
+    byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
     // delay(2000);
     // byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
 

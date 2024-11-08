@@ -271,7 +271,7 @@ byte SlowHomeNet::setDataArray(byte command, byte data) {
 }
 
 /// @brief Store 1 byte message and 2 bytes in the dataArray before calling send. High order byte at dataArray[0]
-/// @param data The data to store to then send. This needs to be of type byte as function overloading is used.
+/// @param data The data to store to then send. This needs to be of type word as function overloading is used.
 /// @return 2: The code for the number of bytes stored(1 message and 2 data).
 byte SlowHomeNet::setDataArray(byte command, word data) {
   if (sizeof(dataArray) >= 3) {
@@ -318,23 +318,70 @@ byte SlowHomeNet::send(byte command) { return sendHelper(0, 1, setDataArray(comm
 /// @return 0 for success or an error code, see sendHelper() function or look at error code #defines in top of header file
 byte SlowHomeNet::sendW(byte command, word data) {
   byte t = setDataArray(command, data);
+  if (t != 2) return Error_Array_to_small;
   // Serial.print(F("Setup array and return length code: "));
   // Serial.print(t);
   return sendHelper(0, 1, 2);
 };
 
 /**
- * @brief For sending message id and data packets over a network, should only be called when not already receiving a message
+ * @brief Check line state and optionally wait for it to be free.
+ *
+ * @param wait true for wait, false for return immediately. Will still wait for MaxInUseHighBits(7 after bit stuffing) if line high and line state unknown.
+ * @param timeout Timeout in miliseconds
+ * @return byte Possible return  values and their meanings:
+ *  0: Line Line in use. Wait set to false.
+ *  1: line  free. Can be message just finished sending.
+ *  2: error couldn't find end of message frame. But line did at least change level.
+ *  3: line error. Stayed low for timeout miliseconds
+ *  4: Error, lineState has invalid value. (code error)
+ */
+byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
+  unsigned long startTime;      //, currentTime;
+  if (lineState == LineFree) {  // lineState is a class var that the ISR etc. can keep updated on the state of the line when implemented
+    return 1;
+  } else if (lineState == LineInuse) {
+    return 0;
+  } else if (lineState != LineUnmonitored) return 4;
+  if (!wait) {  // Will still wait for MaxInUseHighBits(52bits, 7 after bit stuffing) if line high and line state unknown.
+    if ((monitorLinePinForChange(MaxInUseHighBits, HIGH) == false)) {
+      return 1;
+    } else {
+      return 0;
+    }
+  } else {
+    boolean levelChanged = false;
+    startTime = millis();
+    do {  //
+      if (digitalRead(networkPin) == HIGH) {
+        if (monitorLinePinForChange(7, HIGH) == false) return 1;
+        levelChanged = true;
+      } else {
+        if (monitorLinePinForChange(5, LOW)) {
+          levelChanged = true;  // 5 should be the max low after bit stuffing is implemented. But we could just use a delay for 1 pulse here.
+        }
+      }
+      // currentTime = millis();
+    } while ((millis() - timeout) <= startTime);
+    if (levelChanged) { return 2; }
+  }
+  return 3;
+}
+
+/**
+ * @brief For sending message with message frame and optional date to the Data line(IO pin).
+ * The message and data are stored in a class array before calling this.
  *
  * @details handling various scenarios such as sending the message framwork, message id, data transmission and CRC calculation.
  * TODO: needs expanding to handle more than (0 or 1) byte of data.
  *
- * @param RTR Remote Transmission Request, 0 = sending message, 1 = request another unit to send a message.
- * Defaults to send message (= 0).
+ * @param RTR default 0(send message), Remote Transmission Request, 0 = sending message, 1 = request another unit to send a message.
  *
- * @param mLen Message length in bytes.
+ * @param mLen default 1, Message length in bytes.
  *
- * @param dLen Data length in bytes.
+ * @param dLen default 1, Data length in bytes.
+ *
+ * @param lineFreeCheck default true, When true check if the line is free.
  *
  * @return The function `SlowHomeNet::send` returns different values based on
  * the outcome of the communication process. Here are the possible return
@@ -347,9 +394,15 @@ byte SlowHomeNet::sendW(byte command, word data) {
  *  19, unhandled data size.
  *
  */
-byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
+byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeCheck) {
   byte sent, crc, t, dataLenCode, i;
   // byte crcBuf[2];
+
+  if (lineFreeCheck == true) {
+    // Check if the line is free and wait until it is with a timeout for if there is a line error etc.
+    t = checkLineFreeState(true, LineCheckTimeout);
+    if (t != 0) { return 1; }
+  }
 
   if (sendStartOfFrame() == SOFValue) {  // Try to send start of frame.
 
@@ -376,14 +429,11 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
       return 17;       // Received message in buffer
     }
 
-    // TODO handle date more than 1 byte. ATM it will always be 0 or 1 byte though.
+    // TODO Test for more message and data lengths. ATM it will always be 0 or 1 byte though.
     // Send message byte(s?)
     for (i = 0; i < mLen; i++) {
-      sent = sendMessageId(dataArray[0]);  // TODO: Update to work with more than 1 byte message lengths.
+      sent = sendMessageId(dataArray[0]);  // send a byte on the line.
       if (sent != dataArray[i]) {
-        // t = pushDataLen(dataLenCode);
-        // if (t > 0) return t;
-        // buf.push(sent);
         dataArray[i] = sent;
         receiveRest(4 + 8 + (8 * i));
         return 17;  // Received message in buffer
@@ -395,11 +445,6 @@ byte SlowHomeNet::sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0) {
       sent = sendData(dataArray[i]);
       if (sent != dataArray[i]) {
         dataArray[i] = sent;
-        // t = pushDataLen(dataLenCode);
-        // if (t > 0) return t;
-        // byte x;
-        // for (x = 0; x < i; x++) buf.push(dataArray[x]);  // push message plus data bytes befor this on one if any.
-        // buf.push(sent);
         receiveRest(4 + 8 + (8 * (i + 1)));  // 1 RTR bit + 3 length bits, 8 bits of message ID, (8 * (i + 1)) data bits from this for loop including 8 for this time.
         return 17;                           // Received message in buffer
       }

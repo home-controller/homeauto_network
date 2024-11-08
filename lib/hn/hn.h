@@ -1,12 +1,12 @@
 /**
  * @file hn.h
  * @author Joseph (you@domain.com)
- * @brief 
+ * @brief
  * @version 0.1.0
  * @date 2024-08-16
- * 
+ *
  * @copyright Copyright (c) 2024
- * 
+ *
  */
 #ifndef _hn_h
 #define _hn_h
@@ -38,15 +38,22 @@ typedef uint8_t boolean;
 #endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
-#define MaxInUseHighBits 7 // This is the value after bit stuffing after 5 consecutive bits of same value is implemented. The 7 is for the end of frame 7 high bits.
-#define CRCError
+#define MaxInUseHighBits \
+  52  // TODO This needs to change to 7 after bit stuffing after 5 consecutive bits of same value is implemented. The 7 is for the end of frame 7 high bits.
+// #define CRCError
 #define SOFBits 2  // The number of SOF (Start of Frame) bits.
+#define FrameInfoBits 4
+#define CRCBits 5  // 4 CRC bits + 1 Delimiter
+#define AckBits 4
+#define EOFBits 7
+#define TotalFrameBits (SOFBits + FrameInfoBits + CRCBits + AckBits + EOFBits)  // = 2+4+5+4+7 = 22 Total frame bits not counting and message or data bits.
+
 #if SOFBits > 1
 #define SOFValue 0b01  // if the number of bit is greater than 1 pull low for (SOFBits - 1) bits then 1 hight bit.
 #else
 #define SOFValue 0  // else pull low for 1 bit.
 #endif
-/// 
+///
 #define maxDataSize 8         // the maximum data frame size in bytes, the is separate for the message frame. Can only be 0,1,2,4,8,16,32 byte
 #define maxMessageSize 1      // The maximum massage size in bytes.
 #define _pinReg PIND          // read PIND for pins D0 to D7 states
@@ -54,12 +61,29 @@ typedef uint8_t boolean;
 #define _hn_int_pin 2
 #define DataLengthBitsLn 3  // the number of bits storing the message and data frame length in code.
 
+#define PulseLength 2048  // 1 bit takes 2048 microseconds (~= 1e6 / 488 = 2049.18) (microsecond = 1 millionth of a second).
+#define BitsPerSecond \
+  488  // this is approx [microseconds in a second]1e6 / 1e6/2048 [1e6/2048=488.28]
+       // used 488 & 2048 as can then shift right 11 to divide by 2048
+       // and the number of bit in a given pulse length can be given by:
+       // bits = t >> 11 and the remaining time by t bitand (2048 - 1)
+
+// Max number of high bits while sending a message should be 7( see MaxInUseHighBits above) but as bit stuffing is not implemented
+// yet maybe 52(from DESIGN.md).
+// That would give a max high time of: 52 / BitsPerSecond = 52/488 ≅ 0.1 seconds = 100 miliseconds
+// 7 bits would be 7/488 ≅ 14 miliseconds
+#define LineCheckTimeout 500  // 1/2 second. This is just waiting for a message to end so if 1/2 a seconds passes there is must be a problem somewhere.
+#define WaitForLineTimeout (SOFBits + maxMessageSize + maxDataSize)  // This needs to wait for the message to be sent not just the line level to change.
+#define LineUnmonitored 0                                            // there is no ISR etc. keeping track of the line state
+#define LineFree 1                                                   // The ISR or function keeping track of incoming messages has marked the line as free.
+#define LineInuse 2                                                  // the line is in use. You may need to call exc(); etc. for this to be up to date.
+
 #define Error_NoError 0         //  0,  Successfully sent and received Ack.
 #define Error_LineError 1       //  1,  line error.
 #define Error_NoRoomInBuffer 3  //  3,  Not enough or no room to store the info needed in the buffer.
 #define Error_AckError 16       //  16, A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
 #define Error_LostPriority 17   //  17, Higher priority message being sent, received in buffer.
-#define Error_CRCError 33 // CRC received not the same as the 1 from calculating it from the received message+data.
+#define Error_CRCError 33       // CRC received not the same as the 1 from calculating it from the received message+data.
 
 ///  18, could be network SOF mismatch on different units,
 /// or network down or not reading all incoming messages properly
@@ -73,6 +97,7 @@ typedef uint8_t boolean;
 #define Error_NoMessageStoredToRetrieve 30
 #define Error_MessageNotInBuffer 31
 #define Error_DataNotInBuffer 32
+#define Error_Array_to_small 33
 
 /// @brief A wired network using IO pins on an MCU. Slow with minimal hardware requirements.
 /// @details This has some similarities with the CAN network but is much slower and don't need separate controller and transceiver chips.
@@ -100,7 +125,7 @@ class SlowHomeNet {
   byte setDataArray(byte command, byte data);
   byte setDataArray(byte command, word data);
   byte setDataArray(byte command, uint32_t data, byte l);
-  byte sendHelper(byte RTR, byte mLen, byte dLen);
+  byte sendHelper(byte RTR = 0, byte mLen = 1, byte dLen = 0, boolean lineFreeCheck = true);
   byte send(byte command);
   byte send(byte command, byte data);
   byte sendW(byte command, word data);
@@ -178,7 +203,8 @@ class SlowHomeNet {
   // uint32_t maxInuseLow = maxInuseHigh + bitPulseLength;  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
   word maxInuseLow = maxInuseHigh + bitPulseLength / 1000;  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
   // byte size_of = sizeof(maxInuseLow);
-  word WaitForLineTimeout = 400;  // 4/10th of a second in millisecond (1e-3). different from more accurate timings that are in microseconds (1e-6)
+  // word WaitForLineTimeout = 400;  // 4/10th of a second in millisecond (1e-3). different from more accurate timings that are in microseconds (1e-6)
+  byte lineState = 0;  // Line in use
 
   unsigned long lastTime;  // In micros. 1/million of a second
   volatile unsigned long CurrentTime;
@@ -216,6 +242,7 @@ class SlowHomeNet {
   boolean monitorLinePinForChange(byte pulses, byte level);
   byte sendBits(byte bits, byte numberOfBits);
   boolean checkPinInput();
+  byte checkLineFreeState(boolean wait, word timeout);
   byte readBits(byte bits);
 
   // byte getPulseNo(byte pulses, byte level);
