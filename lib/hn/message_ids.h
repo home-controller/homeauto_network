@@ -16,6 +16,10 @@
 
 #ifndef _message_ids_h
 #define _message_ids_h
+// very simple code, using this for testing:
+/// first 4 bits the message id for switch changed,
+/// next 3 bits switch No.
+/// and last bit for the switch state(or/off)
 
 #define c_node \
   B1100  // command to a node with specified id. Changed from b0000 to b1000 to

@@ -77,6 +77,7 @@ word loopCount;
  * @param state The state of the switch.  0 for off, 1 for on.
  */
 void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  // Callback when a switch changes
+  byte r;
   Serial.print(F("ioType:"));
   Serial.print(ioType);
   Serial.print(F(", i:"));
@@ -89,9 +90,11 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
   Serial.print(hNet.getPinNo());
   Serial.println(").");
   // using a 1 byte message will work with up to 8 switches. So will likely also need a byte of date with the switch and mabe room id
-  hNet.send((mId_sw_comms << 4) + ((i bitand 0b111) << 1) + (state bitand 1));  /// first 4 bits the message id for switch changed,
-                                                                                /// next 3 bits switch No.
-                                                                                /// and last bit for the switch state(or/off)
+  r = hNet.send((mId_sw_comms << 4) + ((i bitand 0b111) << 1) + (state bitand 1));  /// first 4 bits the message id for switch changed,
+                                                                                    /// next 3 bits switch No.
+                                                                                    /// and last bit for the switch state(or/off)
+  Serial.print("Send returns:");
+  Serial.println(r);
 }
 
 gpioSwitchInputC gpioIn{pinIO_no_of_switches, 0, pinIO_switchState, pinIO_pinsA_in};
@@ -217,7 +220,7 @@ void loop() {
 #endif
   static byte c = 0;
   wdt_reset();
-  gpioIn.SwitchesExe();  // Func is debounced
+  gpioIn.SwitchesExe();  // Func is debounced. Pins are Pullup. Callback func for switches changed is gotInputPin() above
   hNet.exc();            // TODO: doing nothing for now
 #ifdef receive_buildflag
   /// really need to
@@ -278,10 +281,10 @@ void loop() {
     Serial.print(F("Message received with no error(0)"));
     // Serial.print(r);
     Serial.print(F(", buffer len: "));
-    Serial.println(hNet.recCount());
-    Serial.println(F("calling getFromBuf"));
+    Serial.print(hNet.recCount());
+    // Serial.println(F("calling getFromBuf"));
     byte t = hNet.getFromBuf(a, rtr, ml, dl);
-    Serial.print(F("buffer len after pop: "));
+    Serial.print(F(", buffer len after pop: "));
     Serial.print(hNet.recCount());
     Serial.print(F(", getFromBuf(): "));
     Serial.print(t);
@@ -301,37 +304,54 @@ void loop() {
       lc++;
     }
     Serial.println();
+    /// first 4 bits the message id for switch changed,
+    /// next 3 bits switch No.
+    /// and last bit for the switch state(or/off)
+
+    if (ml == 1 and (dl == 0)) {
+      byte mID = a[0] >> 4;
+      byte switchNo = (a[0]>>1) bitand 0b111;
+      byte switchState = a[0] bitand 0b1;
+      Serial.print(F("message ID:"));
+      Serial.print(mID);
+      Serial.print(F(", Switch No:"));
+      Serial.print(switchNo);
+      Serial.print(F(", Switch is:"));
+      if(switchState == 0)
+      Serial.println(" off");
+      else Serial.println(" on");
+    }
   } else {
     Serial.print(F("Error receiving message, error = "));
     Serial.println(r);
   }
 #endif  // basicDebug else end.
 #endif  // Receive end
-#ifdef send_buildflag
-  sendCTime = millis();
-  if ((sendCTime - sendLastTime) >= 15000) {
-    static byte sc = 0;
-    sendLastTime = sendCTime;
-    delay(2000);
-    sc = hNet.send(126, (byte)7);
-    Serial.println(F("Message sent (126, 7)"));
-    delay(2000);
-    byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
-    Serial.println(F("Message sent (28, 0xAAAB(0xAA=170, 0xAB=171, 0xAAAB=43691))"));
-    // delay(2000);
-    // byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
-
-    // Serial.print(F("Message sent "));
-    // Serial.print(sc);
-    // Serial.print(F(", Second Message sent "));
-    // Serial.print(sc2);
-    // Serial.print(F(", Third Message sent "));
-    // Serial.print(sc3);
-
-    if (sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
-    // Serial.println();
-  }
-#endif
+        /* #ifdef send_buildflag
+          sendCTime = millis();
+          if ((sendCTime - sendLastTime) >= 15000) {
+            static byte sc = 0;
+            sendLastTime = sendCTime;
+            delay(2000);
+            sc = hNet.send(126, (byte)7);
+            Serial.println(F("Message sent (126, 7)"));
+            delay(2000);
+            byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
+            Serial.println(F("Message sent (28, 0xAAAB(0xAA=170, 0xAB=171, 0xAAAB=43691))"));
+            // delay(2000);
+            // byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
+      
+            // Serial.print(F("Message sent "));
+            // Serial.print(sc);
+            // Serial.print(F(", Second Message sent "));
+            // Serial.print(sc2);
+            // Serial.print(F(", Third Message sent "));
+            // Serial.print(sc3);
+      
+            if (sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
+            // Serial.println();
+          }
+        #endif */
 
   loopCount++;
 

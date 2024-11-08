@@ -400,13 +400,13 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
 
   if (lineFreeCheck == true) {
     // Check if the line is free and wait until it is with a timeout for if there is a line error etc.
-    t = checkLineFreeState(true, LineCheckTimeout);// returns 1 for line free
+    t = checkLineFreeState(true, LineCheckTimeout);  // returns 1 for line free
     if (t != 1) {
       Serial.println("Line not free");
       return 1;
     }
   }
-Serial.println("Line free, starting to send");
+  Serial.println("Line free, starting to send{ sendHelper() }");
   if (sendStartOfFrame() == SOFValue) {  // Try to send start of frame.
 
     // Send RTR (Remote Transmission Request).
