@@ -218,6 +218,7 @@ class SlowHomeNet {
   byte lastState = 1;
   byte dataArray[maxDataSize + maxMessageSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
   byte RTRLenCode;                               // The RTR in the high bit plus the length code. Class var.
+  byte mHandled; // This message was handled by a different unit.
 
   byte dataIn = 0;
   /*
@@ -240,7 +241,6 @@ class SlowHomeNet {
   circular_bufC buf;
 
   boolean monitorLinePinForChange(byte pulses, byte level);
-  byte sendBits(byte bits, byte numberOfBits);
   boolean checkPinInput();
   byte checkLineFreeState(boolean wait, word timeout);
   byte readBits(byte bits);
@@ -249,6 +249,9 @@ class SlowHomeNet {
 
   byte pushDataLen(byte l, byte RTR);
   byte pushMessageId(byte m);
+
+  // Private send data to line functions
+  byte sendBits(byte bits, byte numberOfBits);
 
   byte sendStartOfFrame();
   byte sendRTR(byte v);

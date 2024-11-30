@@ -406,7 +406,7 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
       return 1;
     }
   }
-  Serial.println("Line free, starting to send{ sendHelper() }");
+  Serial.println(F("Line free, starting to send{ sendHelper() }"));
   if (sendStartOfFrame() == SOFValue) {  // Try to send start of frame.
 
     // Send RTR (Remote Transmission Request).
@@ -474,9 +474,18 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
       sent = sendBits(0b1, 1);  // TODO Not bothering to check for delimiter errors
     }
 
+    // send Message received and handled Ack.
+    // TODO This should probably check the compleat timeing of the 2 bits(the Ack + Delimiter as one)
+    // for 1 pull low of approx 1 bit length anywhere in the time frame for sending the 2 bits.
+    // The same is true of the Ack above, should implement a sendAck() func to do this.
+    sent = sendBits(0b11, 2);  // This should fail if the message is acknowledged as handled.
+    if (sent != 0) {           // TODO this will not work if the ack bit is sent right between the Ack and delimiter pulses.
+      mHandled = 1;
+    } else mHandled = 0;
+
     // Send end of frame
     sent = sendEndOfFrame();
-    if (sent != 0) { return 21; }
+    if (sent != 0) { return Error_EOFCodeStored; }
   } else {
     /// SOF send fail, this shouldn't happen, code or line fault
     /// TODO: Do more here.
@@ -566,8 +575,11 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
   byte crcCalc = Crc4(dataArray, mLen + dLen);
   readBits(1);  // CRC delimiter. Delimiter is high.
                 // if (Crc4buf(bufSI) == crc) {
+
+  // send CRC Ack bit and delimiter
   if (crc == crcCalc) {
     // Check if anyone failed CRC while also waiting for the 2 bits to be sent.
+    // TODO If we are going to check if we can handle the message maybe don't send the Ack or just not the delimiter and use the time to check.
     ack = sendAck(1);
     if (ack != 0) {  // another unit had CRC fail on receive.
       return_error = Error_AckError;
@@ -581,9 +593,36 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
     Serial.print(crc);
     Serial.print(')');
     Serial.print(F(", crcCalc = "));
-    Serial.print(crcCalc, BIN);
-    Serial.print(", ");
+    Serial.println(crcCalc, BIN);
+    Serial.print("Bits [RTR:");
+    Serial.print(RTRLenCode >> 7);
+    Serial.print(F(", DL:"));
+    Serial.print(RTRLenCode bitand ((1 << DataLengthBitsLn) - 1), BIN);
+
+    // temp note for testing: M = 0b00011100 D = 10101010 10101010
+
+    Serial.print(F(", DA:"));
+    for (i = 0; i < mLen + dLen; i++) {
+      if (i > 0) Serial.print(',');
+      Serial.print(dataArray[i], BIN);
+    }
+    Serial.println(F("]"));
   }
+
+  // Get/Send the message handled Ack bit.
+  // TODO this needs to check if the message is one we can deal with and if so send 0 on the line else just read it.
+  // Any 'we can handle it' check can't take to long we can't miss the timeing slot. Maybe we can use part of the time
+  // for the delimiter bit above and this has 1 as well.
+  // 1.1: change sendAck() to have option to not send the delimiter so we can use the time here.
+  // 1.2: Or we could use all the time for the CRC check Ack. We probable do not care if another unit fails CRC as long as we don't?
+  // 2: Save time
+  // 3: Call a callback func to check if we are handleing the message.
+  // 4: check if we still have time before message handled Ack needs to be sent.
+  //  4.1: if extra time add delay
+  // 5: Check if we took to long.
+  //  5.1 if we are still before the delimiter timeslot maybe still send late
+  //  5.2 else if we are even to late for that return an error.
+  mHandled = readBits(2);  // this value probably has little use here and may only have use to the sending unit when the handled code has been implemented.
 
   // bufSI = buf.nextIndex();
   // tl = buf.getLength();
@@ -789,47 +828,66 @@ byte SlowHomeNet::getFromBuf(byte a[], byte &RTR, byte &mLen, byte &dLen) {
  * @return byte The value read i.e. if bit read were 1,0,1,1 that would be 0b1011= 11.
  */
 byte SlowHomeNet::readBits(byte bits) {
-  byte bitCount, x, c, cl, cc, out;
-  static byte y = 1;  // This is part of the one 8th of the of a bit pulse in a for loop. setting to 0 takes 1 off and setting to 2 adds 1.
-                      // The can be used to adjust the timings to try and fix small timing mismatches.
+  byte bitCount, x, out;
+  byte cStart;  // count of high pulse at start of bit pulse
+  byte cMid;    // count of high pulse in middle of bit pulse
+  byte cEnd;    // count of high pulse towards the end of the bit.
+
+  static byte y = 1;  // Normally when set to 1 the for loop will check the bit pulse 8 points in time
+                      // bitPulseLength/8 microseconds apart.
+                      // If set to 0 with check an extra time so time taken is [ bitPulseLength + bitPulseLength/8 ]
+                      // If set to 2 with check 7 times so time taken is [ bitPulseLength - bitPulseLength/8 ]
 
   boolean level, levelC;
   level = digitalRead(networkPin);  // this always needs to be LOW or HIGH i.e. 1 or 0 as it it used with 'bitor' to set the last bit.
   if (bits > 8) bits = 8;
   out = 0;
   for (bitCount = 1; bitCount <= bits; bitCount++) {  // loop through the bits given by 'bits'
-    c = 0;                                            // count of high pulse in middle of bit pulse
-    cc = 0;                                           // Count of level opposite of expected towards the end of the bit.
-    cl = 0;
-    for (x = y; x <= 8; x++) {  // split each pulse into 8 and check the levels.
+    cStart = 0;
+    cEnd = 0;
+    cMid = 0;
+    if (y == 0) {                                                                           // No need to check end of last bit so skip ahead here first.
+      delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));  // Skip ahead as we are likely behind
       y = 1;
+    }
+    for (x = y; x <= 8; x++) {  // split each pulse into 8 and check the levels.
 #ifdef UnitTest
       inBitPos = x;
 #endif
 
       levelC = digitalRead(networkPin);
-      if (x <= 2) {  // first 1/4 of bit pulse
-        if (levelC == HIGH) cl++;
+      /// maybe cEnd, cMid would work better using more or less of the checks.
+      if (x <= 3) {  // first 3/8 of bit pulse, first 3 out of 8 checks(can be 2 out of 7 if y is 2)
+        if (levelC == HIGH) cStart++;
+      } else if (x >= 6) {  // last 3/8 of bit pulse
+        if (levelC == HIGH) cEnd++;
       }
-      if (x > 6) {  // last 1/4 of bit pulse
-        if (levelC == HIGH) cc++;
-      } else {  // middle part of bit pulse
-        if (levelC == HIGH) c++;
+      if ((x >= 3) and (x <= 6)) {  // middle part of bit pulse
+        if (levelC == HIGH) cMid++;
       }
       delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));  // 11 12 13 15
       // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
       // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
       // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
     }
-    // try to correct timing errors
-    if (c >= 3) {
-      level = HIGH;  // pulse is split into 8 and 3 out of the middle 4 checks are HIGH
-      if (cc == 0) y = 2;
-      else if (cl == 1) delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));
+    // try to correct timing errors, if not
+    if (y == 1) {       // Check full 8 points have been checked. This means we can't speedup 2 bits in a row
+                        // we could instead correct for cStart missing 1 check by adding 1 to it if cMid>=3
+      if (cMid >= 3) {  // pulse is split into 8 and at least 3 out of the middle 4 checks are HIGH
+        level = HIGH;
+        if (cStart < 2)  // If 2 out of the 3 checks at the start are different from the middle, start is likely still part of last bit.
+          y = 0;
+        if (cEnd <= 1)  // cEnd should be 3. So line noise or reading part of next bit if lower.
+          y++;          // Next bit don't check at fist point in bit as probably already missed it.
+      } else {
+        level = LOW;
+        if (cEnd >= 2)    // Should be 0. Alow 1 for noise or slight timeing mismatch
+          y = 2;          // Next bit don't check at fist point in bit as probably already missed it.
+        if (cStart >= 2)  // Not used else to alow bad noise to cancel out. Although at that point probably unreadable anyway.
+          y--;            // This bit is likely still being sent, so wait a bit before reading next one.
+      }
     } else {
-      level = LOW;
-      if (cc >= 2) y = 2;
-      else if (cl >= 2) delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));
+      y = 1;
     }
     out = ((out << 1) bitor level);
     level = levelC;  // if (levelC != level) level = levelC;
@@ -896,10 +954,10 @@ byte SlowHomeNet::readBits(byte bits) {
 /// TODO: This is expecting the pull low for start of frame and will never return until it gets 1;
 /// @return 0 for success or else an error code.
 byte SlowHomeNet::checkSOF() {
-  byte r, line;
+  byte r;
   // Check for line going low. This is expecting the pull low for the start of the frame so not checking for middle of frame or anything like that.
-  do { line = digitalRead(networkPin); } while (line == 1);  // permanent blocking, maybe change to an if // While line is pulled high. i.e. no network activity.
-  r = readBits(SOFBits);
+  do { r = readBits(1); } while (r == 1);  // permanent blocking, maybe change to an if // While line is pulled high. i.e. no network activity.
+  if (SOFBits > 1) r = readBits(SOFBits - 1);
   if (r != SOFValue) {
 #ifdef hn_debug
     Serial.print(F("\r\n Unexpected start of frame value: 0b"));
@@ -1095,7 +1153,7 @@ uint8_t OneWireCrc8(const uint8_t *addr, uint8_t len, uint8_t crc = 0) {
 byte SlowHomeNet::Crc4(uint8_t *addr, uint8_t len) {
   byte crc;
   crc = OneWireCrc8(addr, len);
-  return (((crc >> 4) xor (crc)) bitand 0b1111);
+  return (((crc >> 4) xor crc) bitand 0b1111);
 }
 
 /// @brief works out the CRC from the frame stored in the buffer, handles wraparound & getting the frame data length from [i]

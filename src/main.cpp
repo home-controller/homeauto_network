@@ -93,7 +93,7 @@ void gotInputPin(byte ioType, byte i, byte offset, byte count, byte state) {  //
   r = hNet.send((mId_sw_comms << 4) + ((i bitand 0b111) << 1) + (state bitand 1));  /// first 4 bits the message id for switch changed,
                                                                                     /// next 3 bits switch No.
                                                                                     /// and last bit for the switch state(or/off)
-  Serial.print("Send returns:");
+  Serial.print(F("Send returns:"));
   Serial.println(r);
 }
 
@@ -167,7 +167,7 @@ void setup() {
     display.begin(i2c_Address, true);  // Address 0x3C default
     display.cp437(true);
 
-    Serial.println("OLED begun");
+    Serial.println(F("OLED begun"));
     // Show image buffer on the display hardware.
     // Since the buffer is initalized with an Adafruit splashscreen
     // internally, this will display the splashscreen.
@@ -185,6 +185,7 @@ void setup() {
     // Serial.print(F(", A7 = "));
     // Serial.println(A7);  // Serial.print( F("D1 = "));Serial.print(D1);
     //                      // SetUpInputs();// Wall switches
+    Serial.println(F("Calling SetUpInputs()"));
     gpioIn.SetUpInputs();
     Serial.print(F("main.cpp: End of Setup(). Line No.: "));
     Serial.println(__LINE__);
@@ -200,8 +201,15 @@ void setup() {
  * switches, executes the network, and checks for a message
  */
 void loop() {
-  static unsigned long sendCTime = millis();
-  static unsigned long sendLastTime = sendCTime - 10000;
+#ifdef send_buildflag
+  unsigned long sendCTime = millis();
+  static unsigned long sendLastTime = sendCTime - 15000;
+#endif
+#ifdef receive_buildflag
+  static unsigned long loopTime = millis();
+  unsigned long loopTimeU;
+#endif
+
   static boolean oneTime = false;
   if (!oneTime) {
     Serial.print(F("Pin number = "));
@@ -209,10 +217,18 @@ void loop() {
     oneTime = true;
     Serial.print(F("Pin state = "));
     if (digitalRead(hNet.getPinNo()) == LOW) Serial.println("LOW");
-    else Serial.println("HIGH");
-    byte ta[2]{1, 7};
+    else Serial.println(F("HIGH"));
+    byte ta[3];
+    ta[0] = 1;
+    ta[1] = 7;
     byte crc = hNet.Crc4(ta, 2);
     Serial.print(F("CRC for [1,7] = "));
+    Serial.println(crc);
+    ta[0] = 28;
+    ta[2] = 0xAA;
+    ta[1] = 0xAB;
+    crc = hNet.Crc4(ta, 3);
+    Serial.print(F("CRC for [28, 0xAA,0xAB] = "));
     Serial.println(crc);
   }
 #ifdef receive_buildflag
@@ -274,7 +290,16 @@ void loop() {
   }
 #else
   Serial.println(F("calling receiveMonitor"));
+  loopTimeU = micros() - loopTime;
   r = hNet.receiveMonitor();  // the chip will reset when the watch dog timer expires.
+  loopTime = micros();
+  Serial.print(F("Time in microsecond / 2048 give approx number or bit pulses between calls:"));
+  Serial.print(loopTimeU >> 11);
+  Serial.print("r");
+  Serial.print(loopTimeU bitand (u32)(2048 - 1));
+  Serial.print(F(", or in 100th of seconds: "));
+  Serial.println(loopTimeU / 1e4);
+
   wdt_enable(WDTO_8S);
   if (r == 0) {
     byte a[5], rtr, dl, ml;
@@ -310,15 +335,14 @@ void loop() {
 
     if (ml == 1 and (dl == 0)) {
       byte mID = a[0] >> 4;
-      byte switchNo = (a[0]>>1) bitand 0b111;
+      byte switchNo = (a[0] >> 1) bitand 0b111;
       byte switchState = a[0] bitand 0b1;
       Serial.print(F("message ID:"));
       Serial.print(mID);
       Serial.print(F(", Switch No:"));
       Serial.print(switchNo);
       Serial.print(F(", Switch is:"));
-      if(switchState == 0)
-      Serial.println(" off");
+      if (switchState == 0) Serial.println(" off");
       else Serial.println(" on");
     }
   } else {
@@ -327,31 +351,33 @@ void loop() {
   }
 #endif  // basicDebug else end.
 #endif  // Receive end
-        /* #ifdef send_buildflag
-          sendCTime = millis();
-          if ((sendCTime - sendLastTime) >= 15000) {
-            static byte sc = 0;
-            sendLastTime = sendCTime;
-            delay(2000);
-            sc = hNet.send(126, (byte)7);
-            Serial.println(F("Message sent (126, 7)"));
-            delay(2000);
-            byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
-            Serial.println(F("Message sent (28, 0xAAAB(0xAA=170, 0xAB=171, 0xAAAB=43691))"));
-            // delay(2000);
-            // byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
-      
-            // Serial.print(F("Message sent "));
-            // Serial.print(sc);
-            // Serial.print(F(", Second Message sent "));
-            // Serial.print(sc2);
-            // Serial.print(F(", Third Message sent "));
-            // Serial.print(sc3);
-      
-            if (sc == Error_AckError) Serial.print(F(": A unit signaled an Ack error, likely CRC fail. "));
-            // Serial.println();
-          }
-        #endif */
+#ifdef send_buildflag
+  sendCTime = millis();
+  if ((sendCTime - sendLastTime) >= 15000) {
+    static byte sc = 0;
+    sendLastTime = sendCTime;
+    // delay(10000);
+    sc = hNet.send(126, (byte)7);
+    Serial.println(F("Message sent (126, 7)"));
+    delay(100);  // Currently the main loop in my test program seems to take about 74 milliseconds, although seems to vary a bit.
+                 // Or enough time for 35 bits to be missed. Although that seems like my math might be out.
+
+    byte sc2 = hNet.sendW(28, 0xAAAB);  // 0xAA 0xAB 88 127
+    Serial.print(F("Second message sent (28 = 0b00011100, 0xAAAB(0xAA=170, 0xAB=171) 0xAAAB=43691=0b10101010 10101010), hNet.sendW returned: "));
+    Serial.println(sc2);
+    // delay(2000);
+    // byte sc3 = hNet.send(28);  // 0xAA 0xAB 88 127
+
+    // Serial.print(F("Message sent "));
+    // Serial.print(sc);
+    // Serial.print(F(", Second Message sent "));
+    // Serial.print(F(", Third Message sent "));
+    // Serial.print(sc3);
+
+    if (sc == Error_AckError) Serial.println(F(": A unit signaled an Ack error, likely CRC fail. "));
+    Serial.println();
+  }
+#endif
 
   loopCount++;
 
@@ -363,9 +389,9 @@ void loop() {
     Serial.print(F(", "));
     Serial.print(micros() - loopTimer);
     Serial.print("µs.");
-    Serial.print(F(" for 5,000 loops through loop(): Time to check each bit "));
+    Serial.print(F(" for 5,000 loops through loop(): Time to send "));
     Serial.print((micros() - loopTimer) / 2048);
-    Serial.println(F(" times."));
+    Serial.println(F(" bits."));
     loopTimer = micros();
     c++;
   }
