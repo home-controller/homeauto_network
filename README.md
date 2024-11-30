@@ -30,7 +30,7 @@ On a lower level limit the max consecutive bits of the same value sent to have m
 
 ### Current problems
 
-1. Sending 2 messages without a delay between them messes up the received message
+1. Sending 2 messages without a delay between them messes up the received message while using the blocking line checking function. For now I have added a 100ms delay between sending but may be better to just hold the line low while the any receiving modules are not checking the line. Although would need to make sure the line was not unavailable for to long.
 2. [x] Check the frame EOF is being sent properly(done)
     1. [ ] After adding the code to make sure we can't have 5 bits in a row of the same value then implement check for line free.
     2. [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
@@ -56,10 +56,10 @@ Also using 2 IO pins would allow for an interrupt to stay active on the receivin
 * [ ]   Acknowledgment frame bit set for messages that this unit can deal with.
 * [ ] Acknowledgment option by sending back the crc checksum.
 * [ ] Maybe add some more of the CAN error checking in the 7 bit end frame.
-* [ ] At the min if you send messages to fast after each other the reviving part messes up.
-* * [ ] TODO: Need to add code to check for line free before sending code. This kind of needs ***"Maximum consecutive bits"*** from [Minimal needed to work](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
+* [x] At the min if you send messages to fast after each other the reviving part messes up. The main loop in my example main takes around 70ms so need to add a delay of about 100ms to have a chance of working without using interrupts or something.
+* * [ ] Test: code that checks for line free before sending code. This kind of needs ***"Maximum consecutive bits"*** from [Minimal needed to work](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
 * * [ ] TODO: Maybe speed up receiving code and make sure it receives all the message frames so the receiving function don't return while the message ending part of the frame is still being send for example
-* * [ ] TODO Add code to try and make sure we don not start receiving a message in the middle of a frame.
+* * [ ] Needs testing: Code to try and make sure we don not start receiving a message in the middle of a frame.
 
 ### Read bus
 
