@@ -50,6 +50,8 @@ SlowHomeNet::SlowHomeNet(byte pin) : networkPin{pin} {
 #endif
 }
 
+SlowHomeNet::SlowHomeNet(byte pin, byte addDelayToSend) : SlowHomeNet(pin) { lineState = LineMinGap; }
+
 void SlowHomeNet::exc() {
   // Todo / This could either handle stuff stored from the pin change
   // interrupt . Or message stored during failed send.
@@ -327,7 +329,8 @@ byte SlowHomeNet::sendW(byte command, word data) {
 /**
  * @brief Check line state and optionally wait for it to be free.
  *
- * @param wait true for wait, false for return immediately. Will still wait for MaxInUseHighBits(7 after bit stuffing) if line high and line state unknown.
+ * @param wait true for wait, false for return immediately. Will still wait for MaxInUseHighBits(7 after bit stuffing)
+ * if line high and line state unknown.
  * @param timeout Timeout in miliseconds
  * @return byte Possible return  values and their meanings:
  *  0: Line Line in use. Wait set to false.
@@ -335,6 +338,7 @@ byte SlowHomeNet::sendW(byte command, word data) {
  *  2: error couldn't find end of message frame. But line did at least change level.
  *  3: line error. Stayed low for timeout miliseconds
  *  4: Error, lineState has invalid value. (code error)
+ * TODO this whole function should probably be rewritten to be clearer.
  */
 byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
   unsigned long startTime;      //, currentTime;
@@ -342,6 +346,9 @@ byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
     return 1;
   } else if (lineState == LineInuse) {
     return 0;
+  } else if (lineState == LineMinGap) {       // Make sure there is enough time between messages if
+    monitorLinePinForChangeMs(lineMinGapMs);  // TODO this seems like it should maybe count the time checked in the other checks below.
+                                              // Also now I have changed the 7 below for MaxInUseHighBits may not need the exta delay
   } else if (lineState != LineUnmonitored) return 4;
   if (!wait) {  // Will still wait for MaxInUseHighBits(52bits, 7 after bit stuffing) if line high and line state unknown.
     if ((monitorLinePinForChange(MaxInUseHighBits, HIGH) == false)) {
@@ -354,7 +361,7 @@ byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
     startTime = millis();
     do {  //
       if (digitalRead(networkPin) == HIGH) {
-        if (monitorLinePinForChange(7, HIGH) == false) return 1;
+        if (monitorLinePinForChange(MaxInUseHighBits, HIGH) == false) return 1;  // MaxInUseHighBits will need changing to 7 when bit stuffing implemented
         levelChanged = true;
       } else {
         if (monitorLinePinForChange(5, LOW)) {
@@ -662,10 +669,42 @@ byte SlowHomeNet::receiveRest(byte bitPos) {
 }
 
 /**
+ * @brief monitor if line changes level in ms milliseconds".
+ *
+ * @param ms Number of milliseconds of time to monitor the line for.
+ * @param level Level to check against. Or check against current level if > 1.
+ * @return boolean return true if the line level changed else false.
+ */
+boolean SlowHomeNet::monitorLinePinForChangeMs(word ms, byte level /*  = 1 */) {
+  byte c = 0;
+  byte f = 0;
+  u32 delayMS;
+  u32 startT = micros();
+  while (delayMS < ((u32)ms * 1000)) {
+    if (f == 0) {  // no delay first time through.
+      f = 1;
+    } else {
+      delayMicroseconds((bitPulseLength >> 3) - DigitalReadTime);
+    }
+    if (digitalRead(networkPin) != level) {
+      if (c > 0)
+        return true;  // if line level changed for to checks in a row return true. This is to allow for nosy line spikes.
+                      // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
+      c++;
+    } else {
+      if (c > 0) c--;
+    }
+
+    delayMS = micros() - startT;
+  }
+  return false;
+}
+
+/**
  * @brief monitor if line changes level in the time of "pulses * bitPulseLength".
  *
  * @param pulses Number of bitPulseLength pulses of time to monitor the line for.
- * @param level
+ * @param level Level to check against. Or check against current level if > 1.
  * @return boolean return true if the line level changed else false.
  * @todo some CAN standards check the level of the pulse 87.5 percent along the
  * pulse length this gives any ringing time to settle.
@@ -674,9 +713,10 @@ boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level = 1) {
   byte x, c = 0;
   if (level > 1) level = digitalRead(networkPin);
   for (x = 1; x <= 8 * pulses; x++) {
-    if (digitalRead(networkPin) != level) {  // if line level changed for to checks in a row return true. This is to allow for nosy line spikes.
-                                             // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
-      if (c > 0) return true;
+    if (digitalRead(networkPin) != level) {
+      if (c > 0)
+        return true;  // if line level changed for to checks in a row return true. This is to allow for nosy line spikes.
+                      // not sure if this is a good idea or not. maybe just add a filter to the line would be better.
       c++;
     } else {
       if (c > 0) c--;

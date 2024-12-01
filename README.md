@@ -52,14 +52,14 @@ Also using 2 IO pins would allow for an interrupt to stay active on the receivin
 
 ### Planning to add
 
-* [ ] Add an additional Ack bit for units that can handel a message.
-* [ ]   Acknowledgment frame bit set for messages that this unit can deal with.
-* [ ] Acknowledgment option by sending back the crc checksum.
-* [ ] Maybe add some more of the CAN error checking in the 7 bit end frame.
+* [x] Add an additional Ack bit for units that can handel a message.
+* * [ ] Acknowledgment frame bit set for messages that this unit can deal with.
 * [x] At the min if you send messages to fast after each other the reviving part messes up. The main loop in my example main takes around 70ms so need to add a delay of about 100ms to have a chance of working without using interrupts or something.
 * * [ ] Test: code that checks for line free before sending code. This kind of needs ***"Maximum consecutive bits"*** from [Minimal needed to work](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
 * * [ ] TODO: Maybe speed up receiving code and make sure it receives all the message frames so the receiving function don't return while the message ending part of the frame is still being send for example
 * * [ ] Needs testing: Code to try and make sure we don not start receiving a message in the middle of a frame.
+* [ ] Maybe: Acknowledgment option by sending back the crc checksum?
+* [ ] Maybe: Add some more of the CAN error checking in the 7 bit end frame.
 
 ### Read bus
 
@@ -102,8 +102,8 @@ If we add a resistor to the IO pin to limit the current in case of short to grou
 
 ## Bus line hardware, protection. pull-up values etc
 
-* [ ] TODO: For testing I will use a 220 ohm resistor on the IO pin so any code error will not kill the chips as this should limit the current to 23mA.
-* [ ] TODO: for testing the pull-up wil be the MCUs internal pull-up.
+* For testing I will use a 220 ohm resistor on the IO pin so any code error will not kill the chips as this should limit the current to 23mA.
+* For testing the pull-up wil be the MCUs internal pull-up. Have added an additional 1k resistor, see below.
 * [ ] TODO: The above 2(maybe more) will need to be checked if they create problems with slope speed and voltage check ranges.
 * [ ] TODO: Most of the above should be options.
 * [ ] TODO: Add a slope shaping circuit something similar to the example from the Onsemi date-sheet above maybe.

@@ -351,7 +351,7 @@ void loop() {
   }
 #endif  // basicDebug else end.
 #endif  // Receive end
-#ifdef send_buildflag
+#ifdef send_TCS_buildflag// To test sending to messages one after the other.
   sendCTime = millis();
   if ((sendCTime - sendLastTime) >= 15000) {
     static byte sc = 0;

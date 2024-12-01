@@ -74,9 +74,12 @@ typedef uint8_t boolean;
 // 7 bits would be 7/488 ≅ 14 miliseconds
 #define LineCheckTimeout 500  // 1/2 second. This is just waiting for a message to end so if 1/2 a seconds passes there is must be a problem somewhere.
 #define WaitForLineTimeout (SOFBits + maxMessageSize + maxDataSize)  // This needs to wait for the message to be sent not just the line level to change.
-#define LineUnmonitored 0                                            // there is no ISR etc. keeping track of the line state
-#define LineFree 1                                                   // The ISR or function keeping track of incoming messages has marked the line as free.
-#define LineInuse 2                                                  // the line is in use. You may need to call exc(); etc. for this to be up to date.
+
+#define LineUnmonitored 0  // there is no ISR etc. keeping track of the line state
+#define LineFree 1         // The ISR or function keeping track of incoming messages has marked the line as free.
+#define LineInuse 2        // the line is in use. You may need to call exc(); etc. for this to be up to date.
+#define LineMinGap 3       // Make sure there is a gap of at least lineMinGapMs (class var)
+// When using a function to check the line each time through the main loop you will likely need this delay. I needed about 100ms for the test in main.c
 
 #define Error_NoError 0         //  0,  Successfully sent and received Ack.
 #define Error_LineError 1       //  1,  line error.
@@ -108,7 +111,8 @@ class SlowHomeNet {
   // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
   void attachIntToPin(byte pin);
   byte getPinNo();
-  explicit SlowHomeNet(byte pin);  // class setup procedure, auto called
+  explicit SlowHomeNet(byte pin);              // class setup procedure, auto called
+  SlowHomeNet(byte pin, byte addDelayToSend);  // class setup procedure, auto called
 
   //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
   void exc();  // Need to call each time though the main loop.
@@ -216,9 +220,11 @@ class SlowHomeNet {
   byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
   byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
   byte lastState = 1;
-  byte dataArray[maxDataSize + maxMessageSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
+  byte dataArray[maxMessageSize + maxDataSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
   byte RTRLenCode;                               // The RTR in the high bit plus the length code. Class var.
-  byte mHandled; // This message was handled by a different unit.
+  byte mHandled;                                 // This message was handled by a different unit.
+  word lineMinGapMs = 100;                       // wait needed between sending 2 messages when checking in main loop
+  // TODO should maybe use #ifdef to remove uneeded vars? When not needing to wait between messages etc.
 
   byte dataIn = 0;
   /*
@@ -241,6 +247,7 @@ class SlowHomeNet {
   circular_bufC buf;
 
   boolean monitorLinePinForChange(byte pulses, byte level);
+  boolean monitorLinePinForChangeMs(word ms, byte level = 1);
   boolean checkPinInput();
   byte checkLineFreeState(boolean wait, word timeout);
   byte readBits(byte bits);

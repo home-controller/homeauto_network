@@ -30,8 +30,14 @@ Max at one level is 5 after that 1 bit is added at the opposite level but this
 can add to the length of time needed to send a frame. 
 
 By default the minimum bit length is:
-2 for start of frame, 3 for length, 8 for message id, 0 data, 4+1 CRC, 1+1 ack
-& 7 end of frame. Also plan to add 2 more bits for message handled.
+1. 2 for start of frame
+2. 3 for length
+3. 8 for message id
+4. 0 data
+5 4+1 CRC
+* 1+1 ack, Any unit on line will pull the Ack bit low on receiving Error 
+* 1+1 Ack (message handled)
+* 7 end of frame.
 so:
 2+3+8+(4+1)+(1+1)+(1+1)+7 = 29 but if there are 5 bits of the same value in a row
 more will be added.(if you don't care about the EOF and maybe ack would be
