@@ -8,8 +8,8 @@
 
 2. bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started.
 3. bits[1] RTR (Remote Transmission Request).
-    1. RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
-    2. We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would not longer work.
+    * RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
+    * We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would not longer work.
 4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
 5. bits[8] command id. Maybe this should be moved down 2 rows?
 6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
@@ -19,25 +19,27 @@
 10. bits[1] Ack delimiter bit (this high to?)
 11. bits[1] Ack bit. This is pulled low by any unit that can handle the message i.e. if the message was light switch turned on then this unit will turn on the light.
 12. bits[1] Ack delimiter bit, need this so the replying unit has some timing leeway
-13. bits[7] : 10: 7 bit end of fame.
+13. bits[7] EOF 7 bit end of fame.
 
 ```fixed width text
 |SF|R|ccc|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|A|D|eeeeeee|
 |01|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|1|1|7 high | number of bits.
 |01|?|1??|????????|????????????????|????|1|?|1|?|1|1111111| the bits value.
+```
 
 Max at one level is 5 after that 1 bit is added at the opposite level but this
 can add to the length of time needed to send a frame. 
 
-By default the minimum bit length is:
+#### By default the minimum bit length is:
+
 1. 2 for start of frame
 2. 3 for length
 3. 8 for message id
 4. 0 data
-5 4+1 CRC
-* 1+1 ack, Any unit on line will pull the Ack bit low on receiving Error 
-* 1+1 Ack (message handled)
-* 7 end of frame.
+5. 4+1 CRC
+6. 1+1 ack, Any unit on line will pull the Ack bit low on receiving Error 
+7. 1+1 Ack (message handled)
+8. 7 end of frame.
 so:
 2+3+8+(4+1)+(1+1)+(1+1)+7 = 29 but if there are 5 bits of the same value in a row
 more will be added.(if you don't care about the EOF and maybe ack would be
@@ -50,7 +52,6 @@ data length codes may increase the id or date length even more.
 
 So minimum number of bits for a message is 20 with no date and not waiting
 for end of frame.
-```
 
 Maybe we could use 6 bits pulled low to interrupt long low priority messages! As long as error handling is handled nicely it shouldn't even need extra code :D and we should hopefully know the message length at this point.
 
