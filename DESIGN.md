@@ -28,7 +28,7 @@
 ```
 
 Max at one level is 5 after that 1 bit is added at the opposite level but this
-can add to the length of time needed to send a frame. 
+can add to the length of time needed to send a frame.
 
 #### By default the minimum bit length is:
 
@@ -37,7 +37,7 @@ can add to the length of time needed to send a frame.
 3. 8 for message id
 4. 0 data
 5. 4+1 CRC
-6. 1+1 ack, Any unit on line will pull the Ack bit low on receiving Error 
+6. 1+1 ack, Any unit on line will pull the Ack bit low on receiving Error
 7. 1+1 Ack (message handled)
 8. 7 end of frame.
 so:
