@@ -218,7 +218,9 @@ class SlowHomeNet {
   byte bitPos = 0;                 /// used in IntCallback(); (when using pin change interrupts)
   byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
   byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
-  byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits
+  byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits. Used in IntCallback()
+  byte bitCountUnchanged = 0;      /// The the number of bits of the same level sent. (Used to insert the opset bit if gets to 5.)
+  boolean lastBitLevel = HIGH;     /// the line level of the last bit sent or received
   byte lastState = 1;
   byte dataArray[maxMessageSize + maxDataSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
   byte RTRLenCode;                               // The RTR in the high bit plus the length code. Class var.
@@ -258,7 +260,9 @@ class SlowHomeNet {
   byte pushMessageId(byte m);
 
   // Private send data to line functions
-  byte sendBits(byte bits, byte numberOfBits);
+  boolean sendBitH();
+  void sendBitL();
+  byte sendBits(byte bits, byte numberOfBits, boolean stuffBitOverride = false);
 
   byte sendStartOfFrame();
   byte sendRTR(byte v);

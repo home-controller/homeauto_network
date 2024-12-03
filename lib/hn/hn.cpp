@@ -64,6 +64,35 @@ void SlowHomeNet::exc() {
 }
 
 /**
+ * @brief Called by sendBits() below to put a High bit on the line, by separating this should make it easier for different hardware
+ *
+ * @return boolean True for successful send, false if a higher priority message pulled the line low.
+ */
+boolean SlowHomeNet::sendBitH() {
+  byte y;
+  pinMode(networkPin, INPUT_PULLUP);
+  delayMicroseconds((bitPulseLength - DigitalWriteTime) >> 2);  // shift right 2 is divide by 4
+  for (y = 1; y <= 3; y++) {                                    // check line level is left high at 1/4, 1/2 & 3/4 of bit pulse
+    if (digitalRead(networkPin) == LOW) {
+      return false;
+    }  // return pos of collision. Can then continue to read
+       // incoming higher priority message.
+    delayMicroseconds((bitPulseLength >> 2) - DigitalReadTime);
+  }
+  return true;
+}
+
+/**
+ * @brief Called by sendBits() below to pull the bit on the line LOW. By separating this should make it easier to have different line hardware implementations
+ *
+ */
+void SlowHomeNet::sendBitL() {
+  pinMode(networkPin, OUTPUT);
+  digitalWrite(networkPin, LOW);
+  delayMicroseconds(bitPulseLength - DigitalWriteTime);
+}
+
+/**
  * @brief Send bits on the home network IO pin, stop sending on line collision.
  *
  * @details Send bits while checking for line contention. High is a resistor pullup and
@@ -77,26 +106,32 @@ void SlowHomeNet::exc() {
  * @param bits Bits to send, need to send msb first so lowest number priority
  * works. Although if numberOfBits is less than 8 bits then, high end bit(s) will be discarded.
  * @param numberOfBits Number of bits to send, max 8 as "bits" is a byte.
+ * @param stuffBitOverride Use this to turn off bit stuffing for end of frame 7 bit lead out.
  * @return byte. 0 for success or else the bit number the collision was on.
  */
-byte SlowHomeNet::sendBits(byte bits, byte numberOfBits) {
+byte SlowHomeNet::sendBits(byte bits, byte numberOfBits, boolean stuffBitOverride) {
 #ifndef noMcu_buildflag
-  byte x, y;
+  byte x, bitLevel;
   for (x = numberOfBits; x > 0; x--) {
-    if (((bits >> (x - 1)) bitand 0b1) == 1) {
-      pinMode(networkPin, INPUT_PULLUP);
-      delayMicroseconds((bitPulseLength - DigitalWriteTime) >> 2);
-      for (y = 1; y <= 3; y++) {
-        if (digitalRead(networkPin) == LOW) {
-          return x + 1;
-        }  // return pos of collision. Can then continue to read
-           // incoming higher priority message.
-        delayMicroseconds((bitPulseLength >> 2) - DigitalReadTime);
-      }
+    bitLevel = ((bits >> (x - 1)) bitand 0b1);
+    if (stuffBitOverride) {  // make sure no more than 5 bits in a row are the same level except for the 7 bit leadout
+      if ((bitCountUnchanged >= 5) and (bitLevel == lastBitLevel)) {
+        if (bitLevel == 1) {
+          sendBitL();
+        } else {
+          if (!sendBitH()) return x + 1;  // Someone else pulled the line low. Low bits always have priority.
+        }
+        lastBitLevel = bitLevel;
+        bitCountUnchanged = 1;
+      } else bitCountUnchanged++;
     } else {
-      pinMode(networkPin, OUTPUT);
-      digitalWrite(networkPin, LOW);
-      delayMicroseconds(bitPulseLength - DigitalWriteTime);
+      bitCountUnchanged = 0;  // This should mean finished sending and doing EOF lead out.
+    }
+
+    if (bitLevel == 1) {  // if bit x is HIGH
+      if (!sendBitH()) return x + 1;
+    } else {  // if bit x i LOW
+      sendBitL();
     }
   }
   // if (!checkPinInput()) pinMode(networkPin, INPUT_PULLUP);
@@ -241,7 +276,7 @@ byte SlowHomeNet::sendAck(byte v) {
 /// @return 0 for no errors, 1 for errors. return value is temporary
 /// error handling is not decided yet. For now storing in endOfFrameError the remaining EOF bits after the first pul low.
 byte SlowHomeNet::sendEndOfFrame() {
-  byte sb = sendBits(0xFF, 7);
+  byte sb = sendBits(0xFF, 7, true);  // bit stuffing turned off = true.
   if (sb > 0) {
     // TODO error code, not implemented yet.
     // Not even sure if the error should be here or force the message to stop(by pulling low for 6 pulses) as soon as the error is found.
