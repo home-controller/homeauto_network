@@ -215,13 +215,14 @@ class SlowHomeNet {
 
   /// @brief pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted. Or stuffed bits.
   /// TODO: If only used in IntCallback(); might be better as a "static" type.
-  byte bitPos = 0;                 /// used in IntCallback(); (when using pin change interrupts)
-  byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
-  byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
-  byte overflowCount = 0;          // to many bits sent without ensuring pin level change at end of 5 bits. Used in IntCallback()
-  byte bitCountUnchanged = 0;      /// The the number of bits of the same level sent. (Used to insert the opset bit if gets to 5.)
-  boolean lastBitLevel = HIGH;     /// the line level of the last bit sent or received
-  byte lastState = 1;
+  byte bitPos = 0;                               /// used in IntCallback(); (when using pin change interrupts)
+  byte lastState = 1;                            // used by the ISR, leaving this as a separate var as this could still be used at the same time as the send/receive funcs
+  byte overflowCount = 0;                        // to many bits sent without ensuring pin level change at end of 5 bits. Used in IntCallback()
+
+  byte bufIndexPartMessageAt = 0;                /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
+  byte dFlags = 0;                               // parity bit is b00000001, ack is b00000010
+  byte bitCountUnchanged = 0;                    /// The the number of bits of the same level sent. (Used to insert the opset bit if gets to 5.)
+  boolean lastBitLevel = HIGH;                   /// the line level of the last bit sent or received
   byte dataArray[maxMessageSize + maxDataSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
   byte RTRLenCode;                               // The RTR in the high bit plus the length code. Class var.
   byte mHandled;                                 // This message was handled by a different unit.
