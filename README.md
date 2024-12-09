@@ -50,6 +50,8 @@ As a CAN etc. would use 2 pins(1 for RX and another for TX) option 2(use a resis
 
 Also using 2 IO pins would allow for an interrupt to stay active on the receiving pin, might simplify things a bit.
 
+* [ ] TODO: If the SOF pull low is set to longer than 5 bit should disable the 5 or more bits of same level bit stuffing?
+
 ### Planning to add
 
 * [x] Add an additional Ack bit for units that can handel a message.

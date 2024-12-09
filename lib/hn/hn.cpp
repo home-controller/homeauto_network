@@ -187,6 +187,9 @@ byte SlowHomeNet::pushMessageId(byte m) {
 /// if not there is a problem with missing messages, SOF length mismatch between units or other hardware/software problems.
 byte SlowHomeNet::sendStartOfFrame() {
   byte r;
+  bitCountUnchanged = 0;                  // No bits sent so far.
+  if (SOFBits <= 1) lastBitLevel = HIGH;  // When startling to send the line should be free, i.e. High
+  // TODO Although if the staring pull low is set to >= 5 we will probably want to disable adding the bit anyway.
   r = sendBits(SOFValue, SOFBits);
   if (r == 0) return SOFValue;
   else return 0;  // The line High at the end of the pull LOWs is the only thing that can change.
@@ -547,6 +550,8 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
  * @details Note, this is expecting that a message is already being sent on the bus so it will not wait for the start bit as it should already be sent
  * Any bits stored in the buffer must already be shifted to the right place as this will just or the new bits in.
  *
+ * Doesn't read the 7 bit ending frame.
+ *
  * If bitPos > (RTR + length code bits) then checks for buffer space else presumes the calling func has already done it.
  *
  * @param pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted.
@@ -896,6 +901,70 @@ byte SlowHomeNet::getFromBuf(byte a[], byte &RTR, byte &mLen, byte &dLen) {
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++ Reed/receive/ watch line/pin +++++++++++++++++++++++++++++++++
 
+byte SlowHomeNet::readBit() {
+  byte cStart = 0;  // count of high pulse at start of bit pulse
+  byte cMid = 0;    // count of high pulse in middle of bit pulse
+  byte cEnd = 0;    // count of high pulse towards the end of the bit.
+  byte pulsePoint;
+
+  static byte startAdjust = 1;  // Normally when set to 1 the for loop will check the bit pulse 8 points in time
+                                // bitPulseLength/8 microseconds apart.
+                                // If set to 0 will check an extra time so time taken is [ bitPulseLength + bitPulseLength/8 ]
+                                // If set to 2 will check 7 times so time taken is [ bitPulseLength - bitPulseLength/8 ]
+
+  boolean level;   // the worked out level form takeing the average level at mutiple points in the bit pulse.
+  boolean levelC;  // level read from the GPIO pin
+
+  if (startAdjust == 0) {                                                                 // No need to check end of pervious bit so skip ahead here first.
+    delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));  // Skip ahead as we are likely behind
+    startAdjust = 1;
+  }
+
+  // check the bit pulse at normally 8 points, but can be 7 to adjust timing
+  for (pulsePoint = startAdjust; pulsePoint <= 8; pulsePoint++) {  // split each pulse into 8 and check the levels.
+#ifdef UnitTest
+    inBitPos = x;
+#endif
+
+    levelC = digitalRead(networkPin);
+    /// maybe cEnd, cMid would work better using more or less of the checks.
+    if (pulsePoint <= 3) {  // first 3/8 of bit pulse, first 3 out of 8 checks(can be 2 out of 7 if y is 2)
+      if (levelC == HIGH) cStart++;
+    } else if (pulsePoint >= 6) {  // last 3/8 of bit pulse
+      if (levelC == HIGH) cEnd++;
+    }
+    if ((pulsePoint >= 3) and (pulsePoint <= 6)) {  // middle part of bit pulse
+      if (levelC == HIGH) cMid++;
+    }
+    delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));  // 11 12 13 15
+    // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
+    // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
+    // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
+  }
+
+  if (cMid >= 3) level = HIGH;
+  else level = LOW;
+
+  // try to correct timing errors, if not
+  if (startAdjust == 1) {  // Check full 8 points have been checked. This means we can't speedup 2 bits in a row
+                           // we could instead correct for cStart missing 1 check by adding 1 to it if cMid>=3
+    if (level == HIGH) {   // pulse is split into 8 and at least 3 out of the middle 4 checks are HIGH
+      if (cStart < 2)      // If 2 out of the 3 checks at the start are different from the middle, start is likely still part of last bit.
+        startAdjust = 0;
+      if (cEnd <= 1)    // cEnd should be 3. So line noise or reading part of next bit if lower.
+        startAdjust++;  // Next bit don't check at fist point in bit as probably already missed it.
+    } else {
+      if (cEnd >= 2)      // Should be 0. Alow 1 for noise or slight timeing mismatch
+        startAdjust = 2;  // Next bit don't check at fist point in bit as probably already missed it.
+      if (cStart >= 2)    // Not used else to alow bad noise to cancel out. Although at that point probably unreadable anyway.
+        startAdjust--;    // This bit is likely still being sent, so wait a bit before reading next one.
+    }
+  } else {
+    startAdjust = 1;
+  }
+  return level;
+}
+
 /**
  * @brief Read 'bits' number of bits from the line, Max 8
  *
@@ -903,69 +972,26 @@ byte SlowHomeNet::getFromBuf(byte a[], byte &RTR, byte &mLen, byte &dLen) {
  * @return byte The value read i.e. if bit read were 1,0,1,1 that would be 0b1011= 11.
  */
 byte SlowHomeNet::readBits(byte bits) {
-  byte bitCount, x, out;
-  byte cStart;  // count of high pulse at start of bit pulse
-  byte cMid;    // count of high pulse in middle of bit pulse
-  byte cEnd;    // count of high pulse towards the end of the bit.
-
-  static byte y = 1;  // Normally when set to 1 the for loop will check the bit pulse 8 points in time
-                      // bitPulseLength/8 microseconds apart.
-                      // If set to 0 with check an extra time so time taken is [ bitPulseLength + bitPulseLength/8 ]
-                      // If set to 2 with check 7 times so time taken is [ bitPulseLength - bitPulseLength/8 ]
-
-  boolean level, levelC;
-  level = digitalRead(networkPin);  // this always needs to be LOW or HIGH i.e. 1 or 0 as it it used with 'bitor' to set the last bit.
+  byte bit, bitCount, out;
   if (bits > 8) bits = 8;
   out = 0;
-  for (bitCount = 1; bitCount <= bits; bitCount++) {  // loop through the bits given by 'bits'
-    cStart = 0;
-    cEnd = 0;
-    cMid = 0;
-    if (y == 0) {                                                                           // No need to check end of last bit so skip ahead here first.
-      delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));  // Skip ahead as we are likely behind
-      y = 1;
+  bitCount = 0;
+  while (bitCount < bits) {
+    bit = readBit();
+    // We only care that this isn't the 6th bit after 5 of the same value at this point.
+    // Skip the next bit after 5 bits of the same level. This is needed as when sending a bit of the opposite level will be added after 5 of the same level.
+    if (bitCountUnchanged + 1 <= 5) {  // if this is a added bit after 5 of the same logic level then skip it.
+      out = ((out << 1) bitor bit);
+      bitCount++;
     }
-    for (x = y; x <= 8; x++) {  // split each pulse into 8 and check the levels.
-#ifdef UnitTest
-      inBitPos = x;
-#endif
-
-      levelC = digitalRead(networkPin);
-      /// maybe cEnd, cMid would work better using more or less of the checks.
-      if (x <= 3) {  // first 3/8 of bit pulse, first 3 out of 8 checks(can be 2 out of 7 if y is 2)
-        if (levelC == HIGH) cStart++;
-      } else if (x >= 6) {  // last 3/8 of bit pulse
-        if (levelC == HIGH) cEnd++;
-      }
-      if ((x >= 3) and (x <= 6)) {  // middle part of bit pulse
-        if (levelC == HIGH) cMid++;
-      }
-      delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));  // 11 12 13 15
-      // Shift left 3 is same as divide by 8.(each shift left divides by 2) 488>>3 = 61, 488=0b111101000
-      // Todo more accurate value for for loop code execution time i.e. DigitalReadTime.
-      // arduino forum says 4.78µs in a for loop for digitalRead so subtracting 5 as a guess for the Arduino.
-    }
-    // try to correct timing errors, if not
-    if (y == 1) {       // Check full 8 points have been checked. This means we can't speedup 2 bits in a row
-                        // we could instead correct for cStart missing 1 check by adding 1 to it if cMid>=3
-      if (cMid >= 3) {  // pulse is split into 8 and at least 3 out of the middle 4 checks are HIGH
-        level = HIGH;
-        if (cStart < 2)  // If 2 out of the 3 checks at the start are different from the middle, start is likely still part of last bit.
-          y = 0;
-        if (cEnd <= 1)  // cEnd should be 3. So line noise or reading part of next bit if lower.
-          y++;          // Next bit don't check at fist point in bit as probably already missed it.
-      } else {
-        level = LOW;
-        if (cEnd >= 2)    // Should be 0. Alow 1 for noise or slight timeing mismatch
-          y = 2;          // Next bit don't check at fist point in bit as probably already missed it.
-        if (cStart >= 2)  // Not used else to alow bad noise to cancel out. Although at that point probably unreadable anyway.
-          y--;            // This bit is likely still being sent, so wait a bit before reading next one.
-      }
-    } else {
-      y = 1;
-    }
-    out = ((out << 1) bitor level);
-    level = levelC;  // if (levelC != level) level = levelC;
+    if (bit != lastBitLevel) {  // Now if the bit is different from the last one reset the count
+      bitCountUnchanged = 1;
+      lastBitLevel = bit;
+    } else bitCountUnchanged++;
+    // if bitCountUnchanged > 5 there is a line or code error as there should be a bit of the opposite level inserted as this should not be use to read the 7 bit high frame
+    // end.
+    if (bitCountUnchanged > 5) bitCountUnchanged = 0;
+    // TODO should probably add error checking code instead of above line.
   }
   // Serial.print(F("pin: "));Serial.print(networkPin);
   // Serial.print(F(", level: "));Serial.print(level);
@@ -1027,11 +1053,15 @@ byte SlowHomeNet::readBits(byte bits) {
 
 /// @brief Read start of frame field, This is mostly to skip past the start of frame field.
 /// TODO: This is expecting the pull low for start of frame and will never return until it gets 1;
+/// TODO: Maybe this should also check that the line was free first(7+ high bits) to prevent starting to read in the middle of a message?
+/// Although that would also mean you would have even more problems when doing time comsuming things between receiving messages like writing text out.
 /// @return 0 for success or else an error code.
 byte SlowHomeNet::checkSOF() {
   byte r;
   // Check for line going low. This is expecting the pull low for the start of the frame so not checking for middle of frame or anything like that.
-  do { r = readBits(1); } while (r == 1);  // permanent blocking, maybe change to an if // While line is pulled high. i.e. no network activity.
+  do { r = readBit(); } while (r == 1);  // permanent blocking, maybe change to an if // While line is pulled high. i.e. no network activity.
+  bitCountUnchanged = 1;
+  lastBitLevel = LOW;
   if (SOFBits > 1) r = readBits(SOFBits - 1);
   if (r != SOFValue) {
 #ifdef hn_debug
