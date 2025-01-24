@@ -49,7 +49,7 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 
 
 #endif
 
-#define serial_speed 38400
+#define serial_speed 115200 //38400
 #define homeNetPin 2
 // #define pinIO_no_of_switches 6               // setup the number of gpio's used
 // #define pinIO_inPins A7, A6, A0, A1, A2, A3  // in sa main.h
@@ -121,6 +121,16 @@ void setup() {
   if (id == 0xFF) Serial.println(F("Next board ID passed as a C flag"));
   NBId = suggest_boardID;
 #endif
+    Serial.begin(serial_speed);
+    while (!Serial) {
+      ;  // wait for serial port to connect. Needed for native USB port only
+      delay(100);
+    }
+    Serial.println();
+    Serial.println(F("Serial connected"));
+    Serial.println(F("program version: " STRINGIFY(VERSION)));  // VERSION is build flag in platformio.ini
+    Serial.print(F("Board type: "));
+    Serial.println(F(board_name));
     if (id == 0xFF) {
       Serial.print(F("Board ID not set, setting board ID to:"));
 
@@ -132,16 +142,6 @@ void setup() {
       Serial.println(id);
     }
     // byte id, i;
-    Serial.begin(serial_speed);
-    while (!Serial) {
-      ;  // wait for serial port to connect. Needed for native USB port only
-      delay(100);
-    }
-    Serial.println();
-    Serial.println(F("Serial connected"));
-    Serial.println(F("program version: " STRINGIFY(VERSION)));  // VERSION is build flag in platformio.ini
-    Serial.print(F("Board type: "));
-    Serial.println(F(board_name));
 
     wdt_enable(WDTO_8S);
     if ((Nano_board == board_type) or (Uno_board == board_type)) { Serial.println(F("No internal pullup mode for A6 & A7")); }
@@ -349,9 +349,9 @@ void loop() {
     Serial.print(F("Error receiving message, error = "));
     Serial.println(r);
   }
-#endif  // basicDebug else end.
-#endif  // Receive end
-#ifdef send_TCS_buildflag// To test sending to messages one after the other.
+#endif                     // basicDebug else end.
+#endif                     // Receive end
+#ifdef send_TCS_buildflag  // To test sending to messages one after the other.
   sendCTime = millis();
   if ((sendCTime - sendLastTime) >= 15000) {
     static byte sc = 0;

@@ -57,12 +57,16 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 
 ### Maximum consecutive bits of the same value
 
-* [ ] Todo On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
+1. [x] On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
+   1. [ ] TODO If the Ack bits are high the last 4+7=11 bits will be high as no bit stuffing in the EOF 7 bits.
+   1. [ ] Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low.
+even if this is not a problem at the default low of speed we might want the code to be capable of increasing the bitrate?
+   1. [ ] Not sure how good the CRC is when cut down form 8 bits to 4, should it go back to 8?
 
 * CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
 * Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.
 * The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
-* At 488 bit/s and with 1 message taking 20 bits min and 59 max message, tine is approx 24th of a second min and approx one 8th of a second slowest.
+* At 488 bit/s and with 1 message taking 20 bits min and 59 max message, time is approx 24th of a second min and approx one 8th of a second slowest.
 
 ### Minimal needed to work for controlling lights with switches and temp
 

@@ -9,9 +9,15 @@ CXX = g++ -H
 SRC_DIR = ./src
 TEST_DIR = ./tests
 BUILD_DIR = ./build
-#LIB_DIR = /home/jmnc2/doc/src/Arduino/libraries/
-LIB_DIR = ../libraries/**/src
 NAME = app.elf
+
+# Arduino dir
+#LIB_DIR = /home/jmnc2/doc/src/Arduino/libraries/
+AED_DIR = $(HOME)/doc/src/Arduino
+LIB_DIR = $(AED_DIR)/libraries/**/src
+
+#VSCode extentions dir.
+VSE_DIR = $(AED_DIR)/vscode/extensions
 
 # Search path for header files
 #CFLAGS += -I$(SRC_DIR)/average
@@ -77,7 +83,7 @@ test_clean:
 
 .PHONY: edit
 edit:
-	code-insiders --extensions-dir="../vscode/insiders/extensions" homeauto_network.code-workspace
+	code-insiders --extensions-dir="$(VSE_DIR)/insiders" homeauto_network.code-workspace
 
 #list conected devises
 .PHONY: list

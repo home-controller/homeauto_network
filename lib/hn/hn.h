@@ -2,7 +2,7 @@
  * @file hn.h
  * @author Joseph (you@domain.com)
  * @brief
- * @version 0.1.0
+ * @version 0.1.1
  * @date 2024-08-16
  *
  * @copyright Copyright (c) 2024
@@ -38,8 +38,9 @@ typedef uint8_t boolean;
 #endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
-#define MaxInUseHighBits \
-  52  // TODO This needs to change to 7 after bit stuffing after 5 consecutive bits of same value is implemented. The 7 is for the end of frame 7 high bits.
+#define MaxInUseHighBits 12  // Most of the frame has a 5 bit Max. This used to be more before bit stuffing was implemented.
+                            // The 12 is for the end of frame 7 high bits + 5 Max.
+                            // TODO Maybe there should be a low bit added before the 7 high bits or change the 7 high to 1 low 6 high.
 // #define CRCError
 #define SOFBits 2  // The number of SOF (Start of Frame) bits.
 #define FrameInfoBits 4
@@ -219,17 +220,19 @@ class SlowHomeNet {
   byte lastState = 1;      // used by the ISR, leaving this as a separate var as this could still be used at the same time as the send/receive funcs
   byte overflowCount = 0;  // to many bits sent without ensuring pin level change at end of 5 bits. Used in IntCallback()
 
-  byte bufIndexPartMessageAt = 0;                /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
-  byte dFlags = 0;                               // parity bit is b00000001, ack is b00000010
+  byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
+  byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
+
   /**
-   * @brief bitCountUnchanged & lastBitLevel are used to add a bit of oppsite level when 5 or more bits sent are the same level and to remove 
-   * the added bit when receiving. This is for the normaly called functions, ISR use different vars above.A3
-   * 
+   * @brief bitCountUnchanged & lastBitLevel are used to add a bit of oppsite level when 5 or more bits sent are the same level and to remove
+   * the added bit when receiving. This is for the normally called functions, ISR use different vars above.
+   *
    * @details The values are tracked in the functions:
    * readBits(byte bits) when reading.
    * sendBits(byte bits, byte numberOfBits, boolean stuffBitOverride) when sending.
    * sendStartOfFrame() initializes the values. for sending
-   * 
+   * checkSOF() initializes the values. for reading
+   * Maybe readBits should be changed so it only removes opersite bits after 5 consecutive bits, this way it could also read EOF and maybe long SOFs
    */
   byte bitCountUnchanged = 0;                    /// The the number of bits of the same level sent. (Used to insert the opset bit if gets to 5.)
   boolean lastBitLevel = HIGH;                   /// the line level of the last bit sent or received

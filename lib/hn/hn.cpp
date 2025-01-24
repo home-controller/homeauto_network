@@ -106,7 +106,7 @@ void SlowHomeNet::sendBitL() {
  * @param bits Bits to send, need to send msb first so lowest number priority
  * works. Although if numberOfBits is less than 8 bits then, high end bit(s) will be discarded.
  * @param numberOfBits Number of bits to send, max 8 as "bits" is a byte.
- * @param stuffBitOverride Use this to turn off bit stuffing for end of frame 7 bit lead out.
+ * @param stuffBitOverride Use this to turn off bit stuffing for end of frame 7 bit lead out. Default=false, will send extra bits.
  * @return byte. 0 for success or else the bit number the collision was on.
  */
 byte SlowHomeNet::sendBits(byte bits, byte numberOfBits, boolean stuffBitOverride) {
@@ -114,24 +114,34 @@ byte SlowHomeNet::sendBits(byte bits, byte numberOfBits, boolean stuffBitOverrid
   byte x, bitLevel;
   for (x = numberOfBits; x > 0; x--) {
     bitLevel = ((bits >> (x - 1)) bitand 0b1);
-    if (stuffBitOverride) {  // make sure no more than 5 bits in a row are the same level except for the 7 bit leadout
-      if ((bitCountUnchanged >= 5) and (bitLevel == lastBitLevel)) {
-        if (bitLevel == 1) {
-          sendBitL();
-        } else {
-          if (!sendBitH()) return x + 1;  // Someone else pulled the line low. Low bits always have priority.
-        }
-        lastBitLevel = bitLevel;
-        bitCountUnchanged = 1;
-      } else bitCountUnchanged++;
-    } else {
-      bitCountUnchanged = 0;  // This should mean finished sending and doing EOF lead out.
-    }
 
+    // Send bit
     if (bitLevel == 1) {  // if bit x is HIGH
       if (!sendBitH()) return x + 1;
     } else {  // if bit x i LOW
       sendBitL();
+    }
+
+    // Update bitCountUnchanged & lastBitLevel as needed.
+    if (bitLevel == lastBitLevel) bitCountUnchanged++;
+    else {
+      lastBitLevel = bitLevel;
+      bitCountUnchanged = 1;
+    }
+
+    // If stuffBitOverride = false and bitCountUnchanged >=5 stuff a bit.
+    if (!stuffBitOverride) {           // make sure no more than 5 bits in a row are the same level except for the 7 bit leadout
+      if ((bitCountUnchanged >= 5)) {  // if 5 bits of same value sent then stuff 1 extra of opersite value.
+        if (bitLevel == 1) {
+          sendBitL();
+        } else {
+          if (!sendBitH()) {  // Someone else pulled the line low. Low bits always have priority.
+            return x + 1;
+          }
+        }
+        lastBitLevel = lastBitLevel xor 0b1;
+        bitCountUnchanged = 1;
+      }
     }
   }
   // if (!checkPinInput()) pinMode(networkPin, INPUT_PULLUP);
@@ -187,12 +197,21 @@ byte SlowHomeNet::pushMessageId(byte m) {
 /// if not there is a problem with missing messages, SOF length mismatch between units or other hardware/software problems.
 byte SlowHomeNet::sendStartOfFrame() {
   byte r;
-  bitCountUnchanged = 0;                  // No bits sent so far.
   if (SOFBits <= 1) lastBitLevel = HIGH;  // When startling to send the line should be free, i.e. High
-  // TODO Although if the staring pull low is set to >= 5 we will probably want to disable adding the bit anyway.
-  r = sendBits(SOFValue, SOFBits);
-  if (r == 0) return SOFValue;
-  else return 0;  // The line High at the end of the pull LOWs is the only thing that can change.
+  else lastBitLevel = LOW;
+  // Diabled bit stuffing so starting frame pull low can be > 4.
+  Serial.println(F("Before sendBits"));
+  r = sendBits(SOFValue, SOFBits, true);
+  Serial.println(F("After sendBits"));
+  bitCountUnchanged = 1;  // 1 low bit sent so far.
+  if (r == 0) {
+    bitCountUnchanged = 0;
+    lastBitLevel = LOW;
+    return SOFValue;
+  }
+
+  lastBitLevel = LOW;
+  return 0;  // The line High at the end of the pull LOWs is the only thing that can change.
 }
 
 /// @brief Try to send the RTR(Remote Transmission Request) bit. While following message priority.
@@ -296,6 +315,9 @@ byte SlowHomeNet::sendEndOfFrame() {
 /// @param command The 1 byte message ID to be stored in dataArray[0]
 /// @return 0, The code for the number of bytes stored(1 message byte).
 byte SlowHomeNet::setDataArray(byte command) {
+  Serial.print(F("Start of setDataArray("));
+  Serial.print(command);
+  Serial.println(F(")"));
   dataArray[0] = command;
   return 0;
 }
@@ -442,12 +464,12 @@ byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
 byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeCheck) {
   byte sent, crc, t, dataLenCode, i;
   // byte crcBuf[2];
-
+Serial.println(F("Start sendHelper"));
   if (lineFreeCheck == true) {
     // Check if the line is free and wait until it is with a timeout for if there is a line error etc.
     t = checkLineFreeState(true, LineCheckTimeout);  // returns 1 for line free
     if (t != 1) {
-      Serial.println("Line not free");
+      Serial.println(F("Line not free"));
       return 1;
     }
   }
@@ -915,6 +937,8 @@ byte SlowHomeNet::readBit() {
   boolean level;   // the worked out level form takeing the average level at mutiple points in the bit pulse.
   boolean levelC;  // level read from the GPIO pin
 
+  // Serial.print(F("bitPulseLength = "));
+  // Serial.println(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));
   if (startAdjust == 0) {                                                                 // No need to check end of pervious bit so skip ahead here first.
     delayMicroseconds(((bitPulseLength >> 3) - DigitalReadTime) - (ReadBitsLoopMicros));  // Skip ahead as we are likely behind
     startAdjust = 1;
@@ -1090,7 +1114,9 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
   // byte rtr, lCode, m, d, crc;
 
   // Check start of frame and wait for start of RTR
+  Serial.println(F("\n\rcall checkSOF()"));
   t = checkSOF();
+  Serial.println(F("retuned"));
 
   /* stRTR = micros();
   rtr = readBits(1);

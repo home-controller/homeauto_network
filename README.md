@@ -1,6 +1,12 @@
 # HomeAuto Network
 
-## Still in Beta, part finished code
+## Still in Beta
+
+Should now work for receiving unit constantly checking the line, although any use of Serial.print or other time consuming code will likely result in missing the start of the frame and hence the message. Even if checking in a tight loop for message start this can still happen while handling a received message if a second message is sent to quick.
+
+For my use case of communicating between light switches and the controller this kind of works. Probably work even better better with the receiving unit with more than one core, then 1 could easily monitor the pin. I am using the Arduino Nano though.
+
+## What is this for?
 
 This is a slow send/receive network(no master/slave) with collision detection and handling. A bit like CAN but way slower and cut-down and no need for extra hardware.
 
@@ -50,7 +56,7 @@ As a CAN etc. would use 2 pins(1 for RX and another for TX) option 2(use a resis
 
 Also using 2 IO pins would allow for an interrupt to stay active on the receiving pin, might simplify things a bit.
 
-* [ ] TODO: If the SOF pull low is set to longer than 5 bit should disable the 5 or more bits of same level bit stuffing?
+* [x] Done: If the SOF pull low is set to longer than 5 bit should disable the 5 or more bits of same level bit stuffing?
 
 ### Planning to add
 
