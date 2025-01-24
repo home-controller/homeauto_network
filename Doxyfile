@@ -974,6 +974,8 @@ INPUT                  = README.md \
                          lib/circular_buf/README.md \
                          lib/defs \
                          lib/gpioSwitchInput \
+                         DESIGN.md \
+                         changelog.md \
                          version.txt
 
 # This tag can be used to specify the character encoding of the source files

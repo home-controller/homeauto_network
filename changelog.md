@@ -1,6 +1,10 @@
-# Some of the changes
+# Change Log
 
 ## 0.1.x
+
+### 0.1.0
+
+Minimally working with added delay between sends.
 
 ### 0.1.1
 

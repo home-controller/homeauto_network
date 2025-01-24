@@ -1,12 +1,19 @@
 /**
- * The code defines a communication protocol for a slow home network, including
+ * @file hn.cpp
+ * @author Joseph (you@domain.com)
+ * @brief A communication protocol for a slow home network, including
  * functions for sending and receiving data packets, calculating CRC checksums,
  * and handling line contention.
+ * @version 0.1.1
+ * @date 2025-01-24
  *
- * @param pin The code you provided seems to be implementing a custom
- * communication protocol for a slow home network using a single pin. It
- * includes functions for sending and receiving bits, handling collisions,
- * calculating CRC checksums, and managing network communication.
+ * @copyright Copyright (c) 2025
+ *
+ * @details  * A slow Home Network using 1 or 2 GPIO pins. I am writing this for 
+ * sending messages to/from wired light switches with a MCU in the switch box
+ * There is a 4 wire low voltage cable to each switch, for power and messages.
+ * 
+ * For more detail about the protocol etc. see: DESIGN.md and the README.md
  */
 
 #include <hn.h>
@@ -464,7 +471,7 @@ byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
 byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeCheck) {
   byte sent, crc, t, dataLenCode, i;
   // byte crcBuf[2];
-Serial.println(F("Start sendHelper"));
+  Serial.println(F("Start sendHelper"));
   if (lineFreeCheck == true) {
     // Check if the line is free and wait until it is with a timeout for if there is a line error etc.
     t = checkLineFreeState(true, LineCheckTimeout);  // returns 1 for line free

@@ -32,14 +32,16 @@ can add to the length of time needed to send a frame.
 
 #### By default the minimum bit length is:
 
-1. 2 for start of frame
-2. 3 for length
-3. 8 for message id
-4. 0 data
-5. 4+1 CRC
-6. 1+1 ack, Any unit on line will pull the Ack bit low on receiving Error
+1. No.bits for start of frame: 2
+2. for RTR (Remote Transmission Request): 1
+2. for length: 3
+3. for message id: 8
+4. data: 0
+5. [4+1] for CRC: 5
+6. [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error
 7. 1+1 Ack (message handled)
 8. 7 end of frame.
+
 so:
 2+3+8+(4+1)+(1+1)+(1+1)+7 = 29 but if there are 5 bits of the same value in a row
 more will be added.(if you don't care about the EOF and maybe ack would be
@@ -59,11 +61,22 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 
 1. [x] On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
    1. [ ] TODO If the Ack bits are high the last 4+7=11 bits will be high as no bit stuffing in the EOF 7 bits.
-   1. [ ] Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low.
-even if this is not a problem at the default low of speed we might want the code to be capable of increasing the bitrate?
-   1. [ ] Not sure how good the CRC is when cut down form 8 bits to 4, should it go back to 8?
+   1. [ ] Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low. Even if this is not a problem at the default low of speed we might want the code to be capable of increasing the bitrate?
 
+* Fields that have bit stuffing:
+   1. command
+   1. Data
+   1. Ack   Might change this as maybe only add for Command & Data fields?
+   1. CRC
+* As the SOF will not have bit stuffing and the other fields at the start are less than 5 bits all the starting fields will not have bits added but RTR & Data size fields could count to having a bit added quicker.
 * CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
+
+### CRC Error checking
+
+* Not sure how good the CRC is when cut down form 8 bits to 4, should it go back to 8?
+
+### Timings and Transmission speed
+
 * Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.
 * The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 * At 488 bit/s and with 1 message taking 20 bits min and 59 max message, time is approx 24th of a second min and approx one 8th of a second slowest.

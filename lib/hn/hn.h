@@ -1,29 +1,26 @@
 /**
- * @file hn.h
+ * @file hn.cpp
  * @author Joseph (you@domain.com)
- * @brief
+ * @brief A communication protocol for a slow home network, including
+ * functions for sending and receiving data packets, calculating CRC checksums,
+ * and handling line contention.
  * @version 0.1.1
- * @date 2024-08-16
+ * @date 2025-01-24
  *
- * @copyright Copyright (c) 2024
+ * @copyright Copyright (c) 2025
  *
+ * @details  * A slow Home Network using 1 or 2 GPIO pins. I am writing this for 
+ * sending messages to/from wired light switches with a MCU in the switch box
+ * There is a 4 wire low voltage cable to each switch, for power and messages.
+ * 
+ * For more detail about the protocol etc. see: DESIGN.md and the README.md
+ * 
+ * hn is short fot Home Network here.
  */
+
 #ifndef _hn_h
 #define _hn_h
 
-/*
- * hn is short fot Home Network here.
- * Not to be confused with Ethernet.
- * This will be kind of like a very cut down and slow CAN network. So there will be no need for network hardware.
- *
- * Lets go with:
- * 1: A pull down pulse to say I am about to start sending.
- * 2: Then 8 bits of data
- * 3: Then a parity. Also makes it so each 9 bits + parity(10 bits total) sent have to have at least 1 each of having the line HIGH and LOW.
- * 4: For now use extra bit for expecting acknowledgement back, OK RESEND etc.
- * 5: TODO Maybe do checksums
- * 6: Todo: should probably use CAN style, add a inverted bit if long sequence of high or low bits instead of relying on parity bit.
- */
 #include <circular_buf.h>
 #ifndef noMcu_buildflag
 #include <Arduino.h>
