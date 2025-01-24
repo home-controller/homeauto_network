@@ -30,17 +30,17 @@
 Max at one level is 5 after that 1 bit is added at the opposite level but this
 can add to the length of time needed to send a frame.
 
-#### By default the minimum bit length is:
+#### By default the minimum bit length is
 
 1. No.bits for start of frame: 2
 2. for RTR (Remote Transmission Request): 1
-2. for length: 3
-3. for message id: 8
-4. data: 0
-5. [4+1] for CRC: 5
-6. [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error
-7. 1+1 Ack (message handled)
-8. 7 end of frame.
+3. for length: 3
+4. for message id: 8
+5. data: 0
+6. [4+1] for CRC: 5
+7. [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error
+8. 1+1 Ack (message handled)
+9. 7 end of frame.
 
 so:
 2+3+8+(4+1)+(1+1)+(1+1)+7 = 29 but if there are 5 bits of the same value in a row

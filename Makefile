@@ -16,7 +16,7 @@ NAME = app.elf
 AED_DIR = $(HOME)/doc/src/Arduino
 LIB_DIR = $(AED_DIR)/libraries/**/src
 
-#VSCode extentions dir.
+#VSCode extensions dir.
 VSE_DIR = $(AED_DIR)/vscode/extensions
 
 # Search path for header files
@@ -85,7 +85,7 @@ test_clean:
 edit:
 	code-insiders --extensions-dir="$(VSE_DIR)/insiders" homeauto_network.code-workspace
 
-#list conected devises
+#list connected devises
 .PHONY: list
 list:
 	pio device list
