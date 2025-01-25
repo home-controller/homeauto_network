@@ -9,10 +9,10 @@
  *
  * @copyright Copyright (c) 2025
  *
- * @details  * A slow Home Network using 1 or 2 GPIO pins. I am writing this for 
+ * @details  * A slow Home Network using 1 or 2 GPIO pins. I am writing this for
  * sending messages to/from wired light switches with a MCU in the switch box
  * There is a 4 wire low voltage cable to each switch, for power and messages.
- * 
+ *
  * For more detail about the protocol etc. see: DESIGN.md and the README.md
  */
 
@@ -199,9 +199,12 @@ byte SlowHomeNet::pushMessageId(byte m) {
   return 0;
 }
 
-/// @brief Try to send the SOF bits. The calling function should make sure the line is not part way through a message.
+/// @brief Try to send the SOF bits.
+/// @note 1. SOF & EOF do not stuff extra bits.
+/// @note 2. The calling function should make sure the line is not part way through a message.
 /// @return This should return the SOF bits.
 /// if not there is a problem with missing messages, SOF length mismatch between units or other hardware/software problems.
+/// @note 3. This sets up the bit stuffing vars
 byte SlowHomeNet::sendStartOfFrame() {
   byte r;
   if (SOFBits <= 1) lastBitLevel = HIGH;  // When startling to send the line should be free, i.e. High
@@ -303,14 +306,15 @@ byte SlowHomeNet::sendAck(byte v) {
 
 /// @brief Send end of frame, and check for EOF error code(not decided yet)
 /// @return 0 for no errors, 1 for errors. return value is temporary
-/// error handling is not decided yet. For now storing in endOfFrameError the remaining EOF bits after the first pul low.
+/// @todo error handling is not decided yet. For now storing in endOfFrameError the remaining EOF bits after the first pul low.
 byte SlowHomeNet::sendEndOfFrame() {
   byte sb = sendBits(0xFF, 7, true);  // bit stuffing turned off = true.
   if (sb > 0) {
-    // TODO error code, not implemented yet.
+    /// TODO error code, not implemented yet.
     // Not even sure if the error should be here or force the message to stop(by pulling low for 6 pulses) as soon as the error is found.
     // error should probably be handled at a lower level as a frame error
-    byte r = readBits(7 - sb);  /// read the remaining end of frame bits. //TODO should this just always read 8 bits instead for 8 bit error code
+    byte r = readBits(7 - sb);  /// read the remaining end of frame bits.
+    // TODO should this just always read 8 bits instead for 8 bit error code
     endOfFrameError = r;
     return 1;  /// TODO maybe this is the error code, not decided on error handling yet though.
   }
@@ -447,7 +451,6 @@ byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
  * The message and data are stored in a class array before calling this.
  *
  * @details handling various scenarios such as sending the message framwork, message id, data transmission and CRC calculation.
- * TODO: needs expanding to handle more than (0 or 1) byte of data.
  *
  * @param RTR default 0(send message), Remote Transmission Request, 0 = sending message, 1 = request another unit to send a message.
  *
@@ -467,6 +470,7 @@ byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout) {
  *  18, network SOF mismatch on different units, network down or not reading all incoming messages properly and checking for in middle of message.
  *  19, unhandled data size.
  *
+ * @todo Add more error checking
  */
 byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeCheck) {
   byte sent, crc, t, dataLenCode, i;
@@ -506,7 +510,6 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
       return 17;       // Received message in buffer
     }
 
-    // TODO Test for more message and data lengths. ATM it will always be 0 or 1 byte though.
     // Send message byte(s?)
     for (i = 0; i < mLen; i++) {
       sent = sendMessageId(dataArray[0]);  // send a byte on the line.
@@ -573,18 +576,35 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
   // Serial.println(dLen);
   return 0;
 }
+
 /**
  * @brief Receive remaining message frame, see @@details for more.
  *
- * @details Note, this is expecting that a message is already being sent on the bus so it will not wait for the start bit as it should already be sent
- * Any bits stored in the buffer must already be shifted to the right place as this will just or the new bits in.
- *
- * Doesn't read the 7 bit ending frame.
- *
+ * @details Any bits stored in the buffer must already be shifted to the right place as this will just or the new bits in.
  * If bitPos > (RTR + length code bits) then checks for buffer space else presumes the calling func has already done it.
+ *
+ * @note 1. This is expecting that a message is already being sent on the bus so it will not wait for the start bit as
+ *  it should already be sent.
+ * @note 2. Doesn't read the 7 bit ending frame.
  *
  * @param pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted.
  * @return Byte, 0 for no errors else an error code, see Error_ code #defines in header file.
+ * 
+ * @todo Should we have an option to return faster for messages we are not interested in to give more prosessing time between calls.
+ * There is a problem when doing time consuming stuff in the main loop, e.g. after printing any messages to the terminal etc.
+ * we can then be partway through the next message if the messages are sent 1 after the other with not enough delay.
+ * @bug When called by receiveMonitor() there is no check for if a message is already being sent. 
+ * This can also be called to finish receiving a message when one of a higher priority interputs it.
+ * @todo There should be some way to know if a message it being sent. 
+ * I can't decide if I should change checkSOF() To make check for line free first, add a simple pin interrupt that just sets a var to true
+ * if the pin has changed since last call to receiveMonitor()
+ * Or just read the message and if the frame is wrong and/or fails the CRC etc. treat it as partway through a message and maybe wait for the next 1.
+ * For now I think I will try to get an ISR pin monitoring/message receiving version working to use instead of this one that uses the main loop.
+ * I am a bit worried that this might upset things like 1-wire sending though, so may need to turn it off sometimes and do both or use a different 
+ * mcu that can do more than 1 thing at a time. Or we could make sure to handle any error with stuff like 1-wire and resend the comand if it fails
+ * which we should probably do anyway.
+ * @todo Send handled Ack for messages we can handle.
+
  */
 byte SlowHomeNet::receiveRest(byte bitPos) {
   byte r, crc, t, i, ack, return_error;
@@ -1087,6 +1107,7 @@ byte SlowHomeNet::readBits(byte bits) {
 /// TODO: Maybe this should also check that the line was free first(7+ high bits) to prevent starting to read in the middle of a message?
 /// Although that would also mean you would have even more problems when doing time comsuming things between receiving messages like writing text out.
 /// @return 0 for success or else an error code.
+/// @todo Maybe have timeout and check for partway through a message.
 byte SlowHomeNet::checkSOF() {
   byte r;
   // Check for line going low. This is expecting the pull low for the start of the frame so not checking for middle of frame or anything like that.
