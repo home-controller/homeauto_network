@@ -4,17 +4,17 @@
  * @brief A communication protocol for a slow home network, including
  * functions for sending and receiving data packets, calculating CRC checksums,
  * and handling line contention.
- * @version 0.1.1
+ * @version 0.1.2
  * @date 2025-01-24
  *
  * @copyright Copyright (c) 2025
  *
- * @details  * A slow Home Network using 1 or 2 GPIO pins. I am writing this for 
+ * @details  * A slow Home Network using 1 or 2 GPIO pins. I am writing this for
  * sending messages to/from wired light switches with a MCU in the switch box
  * There is a 4 wire low voltage cable to each switch, for power and messages.
- * 
+ *
  * For more detail about the protocol etc. see: DESIGN.md and the README.md
- * 
+ *
  * hn is short fot Home Network here.
  */
 
@@ -35,11 +35,14 @@ typedef uint8_t boolean;
 #endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
-#define MaxInUseHighBits 12  // Most of the frame has a 5 bit Max. This used to be more before bit stuffing was implemented.
-                            // The 12 is for the end of frame 7 high bits + 5 Max.
-                            // TODO Maybe there should be a low bit added before the 7 high bits or change the 7 high to 1 low 6 high.
+/// @brief The 16 is for the end of frame 7 high bits + Acks 4 high(when sent) + 5 Max.
+/// @note Most of the frame has a 5 bit Max This used to be more before bit stuffing was implemented.
+/// @todo maybe should add a low bit before the Ack(7+4=11) or EOF(5+4=9) bits or even both but that
+/// would only help if the first added bit was set to the inverse of the last CRC bit. Be back to a Max of 7 then
+#define MaxInUseHighBits 16
+
 // #define CRCError
-#define SOFBits 2  // The number of SOF (Start of Frame) bits.
+#define SOFBits 2  /// @brief The number of SOF (Start of Frame) bits.
 #define FrameInfoBits 4
 #define CRCBits 5  // 4 CRC bits + 1 Delimiter
 #define AckBits 4
@@ -213,12 +216,11 @@ class SlowHomeNet {
 
   /// @brief pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted. Or stuffed bits.
   /// TODO: If only used in IntCallback(); might be better as a "static" type.
-  byte bitPos = 0;         /// used in IntCallback(); (when using pin change interrupts)
-  byte lastState = 1;      // used by the ISR, leaving this as a separate var as this could still be used at the same time as the send/receive funcs
-  byte overflowCount = 0;  // to many bits sent without ensuring pin level change at end of 5 bits. Used in IntCallback()
+  byte lastState = 1;  // used by the ISR, leaving this as a separate var as this could still be used at the same time as the send/receive funcs
 
   byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
   byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
+  bool bufferOverflow = false;
 
   /**
    * @brief bitCountUnchanged & lastBitLevel are used to add a bit of oppsite level when 5 or more bits sent are the same level and to remove

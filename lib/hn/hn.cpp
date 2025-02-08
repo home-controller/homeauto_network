@@ -589,18 +589,18 @@ byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeChe
  *
  * @param pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted.
  * @return Byte, 0 for no errors else an error code, see Error_ code #defines in header file.
- * 
+ *
  * @todo Should we have an option to return faster for messages we are not interested in to give more prosessing time between calls.
  * There is a problem when doing time consuming stuff in the main loop, e.g. after printing any messages to the terminal etc.
  * we can then be partway through the next message if the messages are sent 1 after the other with not enough delay.
- * @bug When called by receiveMonitor() there is no check for if a message is already being sent. 
+ * @bug When called by receiveMonitor() there is no check for if a message is already being sent.
  * This can also be called to finish receiving a message when one of a higher priority interputs it.
- * @todo There should be some way to know if a message it being sent. 
+ * @todo There should be some way to know if a message it being sent.
  * I can't decide if I should change checkSOF() To make check for line free first, add a simple pin interrupt that just sets a var to true
  * if the pin has changed since last call to receiveMonitor()
  * Or just read the message and if the frame is wrong and/or fails the CRC etc. treat it as partway through a message and maybe wait for the next 1.
  * For now I think I will try to get an ISR pin monitoring/message receiving version working to use instead of this one that uses the main loop.
- * I am a bit worried that this might upset things like 1-wire sending though, so may need to turn it off sometimes and do both or use a different 
+ * I am a bit worried that this might upset things like 1-wire sending though, so may need to turn it off sometimes and do both or use a different
  * mcu that can do more than 1 thing at a time. Or we could make sure to handle any error with stuff like 1-wire and resend the comand if it fails
  * which we should probably do anyway.
  * @todo Send handled Ack for messages we can handle.
@@ -1207,27 +1207,56 @@ byte SlowHomeNet::receiveMonitor() {  // should I add a timeout?
   return 0;
 }
 
+/**
+ * @brief ISR called each time the network pin changes
+ *
+ * @todo Change to accept different message sizes.
+ * @todo Store the message in a buffer.
+ * @todo Uses the fact that 5 bits of the same level aways means a stuffed bit next as the EOF is 7 bits, this means 
+ * this will stop working if we change to sending functions to not add stuffed bits in the crc and Ack fields.
+ * This is a problem as the Ack fields should not have bits stuffed as they can changes from the sent value when acknowledged
+ * by a different unit. So I guess we need to work out the message length here in the ISR or store all the bits including the stuffed bits.
+ */
 void SlowHomeNet::IntCallback() {  // expects 11 bit: 8 data 1 ack, 1 parity & 1
 // low bit at start.
 #ifndef noMcu_buildflag
   unsigned long t;
+  byte bitsSentNew;
+  static byte bitsCount = 0;
+  static byte bitsStore = 0;
+  static boolean expectStuffedBit = false;
   word mod_t;
   byte state = _pinReg & _pinMask;  // LOW = 0 but HIGH value will = the mask not 1.
   // word dTemp = 0;
   //  if last state change time > 9 bits + 1/3 bit margin and was low then
   //  reset and wait for new start. 2: if was high then start counting.
 
-  CurrentTime = micros();  // not sure if should try and use the registers strait?
+  CurrentTime = micros();  // not sure if should try and use the registers strate?
   t = CurrentTime - lastTime;
   // If time since last called less then 1/2 pulse time ignore call
   if (t < (bitPulseLength >> 1)) { return; }
-  t = CurrentTime - lastTime;
+  bitsSentNew = (byte)((word)(CurrentTime - lastTime) >> 11);  // time passed / 2048 or number of full bit pulses
   lastTime = CurrentTime;
-  mod_t = t & 0x7ff;  //= 11 bit mask (0x7ff = 2048 - 1 = 2^11 - 1 = 0b11111111111)
-  t = t >> 11;
-  if (mod_t > (bitPulseLength >> 1)) t++;  // t now = the number of bits sent with the last line pulse length.
 
-  if (t + bitPos > 11) {
+  mod_t = (word)t & 0x7ff;  //= 11 bit mask (0x7ff = 2048 - 1 = 2^11 - 1 = 0b11111111111)
+  // if remainder is greater than bitPulseLength divided by 2 then add 1 bit to bitsSent.
+  if (mod_t >= (bitPulseLength >> 1)) bitsSentNew++;  // t now = the number of bits sent with the last line pulse length.
+  // hopefully bitsSentNew show always be > 0 here
+  if (expectStuffedBit) bitsSentNew--;// drop a stuffed bit if any.
+  if (bitsSentNew == 5) expectStuffedBit = true;
+  else expectStuffedBit = false;
+  if (bitsCount + bitsSentNew >= 8) {
+    bitsStore << (8 - bitsCount);
+    if (state > 0) bitsStore |= ((1 << (8 - bitsCount)) - 1);
+    bitsSentNew = bitsSentNew - (8 - bitsCount);
+    if (buf.space() > 0) buf.push(bitsStore);
+    else }
+  bitsSent <<= bitsSentNew;  // make room for new bits
+                             // if new bits are high set them to 1s
+  bitPos += bitsSentNew;
+
+  if (bitsSent + bitPos >= 8) {  // If we have 8 bits store them in the buffer.
+
     if (overflowCount < 0xFF) overflowCount++;
     bitPos = 0;
   } else {

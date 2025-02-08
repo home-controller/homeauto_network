@@ -36,6 +36,7 @@
 		"docwriter.progress.trackFunctions": true,
 		"docwriter.progress.trackClasses": true,
 		"docwriter.progress.trackTypes": true,
-		"docwriter.hotkey.mac": "⌘ + ."
+		"docwriter.hotkey.mac": "⌘ + .",
+		"todo-tree.tree.scanMode": "open files"
 	}
 }

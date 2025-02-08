@@ -2,12 +2,18 @@
 
 ## 0.1.x
 
-### 0.1.0
+### &nbsp;&nbsp;&nbsp;&nbsp; 0.1.0
 
-Minimally working with added delay between sends.
+ &nbsp;&nbsp;&nbsp;&nbsp; 1. Minimally working with added delay between sends.
 
-### 0.1.1
+---
 
-Added bit stuffing.
+### &nbsp;&nbsp;&nbsp;&nbsp; 0.1.1
 
-### 0.1.2
+ &nbsp;&nbsp;&nbsp;&nbsp; 1. Added bit stuffing.  
+
+---
+
+    ### 0.1.2
+    1. Add ISR for receiving messages
+    2. test
