@@ -1,11 +1,7 @@
 # Design document
-
-## Design
-
-### Lets go with- [Design document](#design-document)
 - [Design document](#design-document)
   - [Design](#design)
-    - [Lets go with- Design document](#lets-go-with--design-document)
+    - [Lets go with](#lets-go-with)
       - [By default the minimum bit length is](#by-default-the-minimum-bit-length-is)
     - [Maximum consecutive bits of the same value](#maximum-consecutive-bits-of-the-same-value)
     - [CRC Error checking](#crc-error-checking)
@@ -21,6 +17,9 @@
   - [Bus line hardware, protection. pull-up values etc](#bus-line-hardware-protection-pull-up-values-etc)
   - [Current test circuit](#current-test-circuit)
 
+## Design
+
+### Lets go with
 
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 
