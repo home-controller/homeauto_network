@@ -1,4 +1,19 @@
+
 # HomeAuto Network
+
+- [HomeAuto Network](#homeauto-network)
+  - [Still in Beta](#still-in-beta)
+  - [What is this for?](#what-is-this-for)
+  - [hn is short for Home Network here](#hn-is-short-for-home-network-here)
+    - [Minimal needed to work for controlling lights with switches and temp](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
+    - [Current problems](#current-problems)
+    - [Planning to add](#planning-to-add)
+    - [Read bus](#read-bus)
+  - [Can protocol web pages](#can-protocol-web-pages)
+    - [Other maximum cable lengths are (these values are approximate)](#other-maximum-cable-lengths-are-these-values-are-approximate)
+  - [Checking for duplicate Board ID](#checking-for-duplicate-board-id)
+  - [Bus line hardware, protection. pull-up values etc](#bus-line-hardware-protection-pull-up-values-etc)
+  - [Current test circuit](#current-test-circuit)
 
 ## Still in Beta
 
