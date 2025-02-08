@@ -2,7 +2,25 @@
 
 ## Design
 
-### Lets go with
+### Lets go with- [Design document](#design-document)
+- [Design document](#design-document)
+  - [Design](#design)
+    - [Lets go with- Design document](#lets-go-with--design-document)
+      - [By default the minimum bit length is](#by-default-the-minimum-bit-length-is)
+    - [Maximum consecutive bits of the same value](#maximum-consecutive-bits-of-the-same-value)
+    - [CRC Error checking](#crc-error-checking)
+    - [Timings and Transmission speed](#timings-and-transmission-speed)
+    - [Minimal needed to work for controlling lights with switches and temp](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
+    - [Read bus](#read-bus)
+      - [Use Pin change interrupt to read the message](#use-pin-change-interrupt-to-read-the-message)
+  - [Can protocol web pages](#can-protocol-web-pages)
+    - [Cable lengths](#cable-lengths)
+    - [Other maximum cable lengths are (these values are approximate)](#other-maximum-cable-lengths-are-these-values-are-approximate)
+    - [Maximum cable length at bit rate](#maximum-cable-length-at-bit-rate)
+  - [Checking for duplicate Board ID](#checking-for-duplicate-board-id)
+  - [Bus line hardware, protection. pull-up values etc](#bus-line-hardware-protection-pull-up-values-etc)
+  - [Current test circuit](#current-test-circuit)
+
 
 1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
 
@@ -123,13 +141,10 @@ This it for using the pin change interrupt to keep track of the timings and not 
 * Should only compleat messages be removed from the buffer, or compleat bytes or compleat messages.
 * I think I will go with for now having an array for 1 message and moving the message to the array as each field or byte is received.
 * so each time through the main loop:
-   1. Check if we are reciving a message 0b111
+   1. Check if we are receiving a message 0b111
    1. If we are check if the time since last pin change is > max for 8 bits and if so reset vars and maybe rase an error.
    1. Move message bits from buffer to message if there there is room and we have enough.
    1. Once we have a full message handle it.
-   
-
-
 
 ## Can protocol web pages
 
@@ -157,11 +172,11 @@ If opto-couplers are used to provide galvanic isolation, the maximum bus length 
 |Bit rate|Max cable length|
 |---|---:|
 |1Mbit/s |25m|
-|800Kbit/s 	|50m|
-|500Kbit/s 	|100m|
-|250Kbit/s 	|250m|
-|125Kbit/s 	|500m|
-|50Kbit/s 	|1000m|
+|800Kbit/s  |50m|
+|500Kbit/s  |100m|
+|250Kbit/s  |250m|
+|125Kbit/s  |500m|
+|50Kbit/s  |1000m|
 
 </details>
 
