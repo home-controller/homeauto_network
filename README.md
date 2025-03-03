@@ -52,10 +52,11 @@ On a lower level limit the max consecutive bits of the same value sent to have m
 ### Current problems
 
 1. Sending 2 messages without a delay between them messes up the received message while using the blocking line checking function. For now I have added a 100ms delay between sending but may be better to just hold the line low while the any receiving modules are not checking the line. Although would need to make sure the line was not unavailable for to long.
-2. [x] Check the frame EOF is being sent properly(done)
+2. Microchip Controllers add a interframe space see: DESIGN.md
+3. [x] Check the frame EOF is being sent properly(done)
     1. [ ] After adding the code to make sure we can't have 5 bits in a row of the same value then implement check for line free.
     2. [ ] would also be nice to always be receiving any messages on the line and hence know if the line was free after checking at MCU start.
-3. Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin.
+4. Line backfeed to the MCU. If there are any unpowered units on the line they will permanently pull the line LOW though the IO pin trying to power the MCU through the IO pin.
 
     This is because there is a diodes on most MCUs that connects all the IO pins to the power pin.
 

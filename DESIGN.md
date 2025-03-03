@@ -3,6 +3,7 @@
 - [Design document](#design-document)
   - [Design](#design)
     - [Lets go with](#lets-go-with)
+    - [Interframe Space](#interframe-space)
       - [By default the minimum bit length is](#by-default-the-minimum-bit-length-is)
     - [Maximum consecutive bits of the same value](#maximum-consecutive-bits-of-the-same-value)
     - [CRC Error checking](#crc-error-checking)
@@ -31,22 +32,35 @@
 4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
 5. bits[8] command id. Maybe this should be moved down 2 rows?
 6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
-7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now
-8. bits[1]: CRC delimiter. Delimiter is high.
+7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now, probably should change to 8 bits
+8. bits[1]: CRC delimiter. Delimiter is high. Maybe should be inverse of preceding bit?
 9. bits[1] Ack bit. Like CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
 10. bits[1] Ack delimiter bit (this high to?)
 11. bits[1] Ack bit. This is pulled low by any unit that can handle the message i.e. if the message was light switch turned on then this unit will turn on the light.
 12. bits[1] Ack delimiter bit, need this so the replying unit has some timing leeway
-13. bits[7] EOF 7 bit end of fame.
+13. bits[1] Extra dominant(pulled low) delimiter bit. Needed to use pin change ISR as without this all CRC + Ack bits could be high, therefore there could be no pin change after the message is sent.Also a lot of bit in a row could be high, As the other delimiter bits should be high it should now have pin changes
+14. bits[7] EOF 7 bit end of fame.
+15. bits[3] Interframe Space. Most(all??) CAN controllers seem to add a delay of 3 bits between sending frames to give the controllers time for housekeeping etc.
 
 ```fixed width text
-|SF|R|ccc|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|A|D|eeeeeee|
-|01|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|1|1|7 high | number of bits.
-|01|?|1??|????????|????????????????|????|1|?|1|?|1|1111111| the bits value.
+|SF|R|lll|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|A|DD|eeeeeee|iii
+|01|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|1|2 |7 high | 3 | number of bits.
+|01|?|1??|????????|????????????????|????|1|?|1|?|10|1111111|111| the bits value.
 ```
 
 Max at one level is 5 after that 1 bit is added at the opposite level but this
 can add to the length of time needed to send a frame.
+
+### Interframe Space
+
+- [ ] Should we add this from Microchip CAN controller?
+
+Below is copied from microchips MCP2515-Family-Data-Sheet-DS20001801K.pdf
+
+>The interframe space separates a preceding frame (of any type) from a subsequent data or remote frame.
+The interframe space is composed of at least three recessive bits, called the ‘Intermission’. This allows
+nodes time for internal processing before the start of the next message frame. After the intermission, the
+bus line remains in the recessive state (Bus Idle) until the next transmission starts.
 
 #### By default the minimum bit length is
 
@@ -57,11 +71,12 @@ can add to the length of time needed to send a frame.
 5. data: 0
 6. [4+1] for CRC: 5
 7. [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error
-8. 1+1 Ack (message handled)
+8. 1+2 Ack (message handled)
 9. 7 end of frame.
 
+TODO Check the math below as I think it has not been updated since changes in frame
 so:
-2+3+8+(4+1)+(1+1)+(1+1)+7 = 29 but if there are 5 bits of the same value in a row
+2+3+8+(4+1)+(1+1)+(1+2)+7 = 30 but if there are 5 bits of the same value in a row
 more will be added.(if you don't care about the EOF and maybe ack would be
 18-20bits)
 
@@ -83,12 +98,16 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
    1. [ ] @bug At the min the Ack bits have extra stuffing bits removed as received but should be done as all high as that is how they are sent.
 
 - Fields that have bit stuffing:
-   1. command
-   1. Data
-   1. Ack   Might change this as maybe only add for Command & Data fields?
-   1. CRC
-- As the SOF will not have bit stuffing and the other fields at the start are less than 5 bits all the starting fields will not have bits added but RTR & Data size fields could count to having a bit added quicker.
-- CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
+  1. SOF is 01 by default, but if the length is increase for 5 or more leading 0(dominant) bits? @todo not sure if the leading 0s have bit stuffing or if they should have, I will worry about that if I ever need more than 4 leading zeros.
+  2. Last high bit of SOF(1) + RTR(1) + length field(3) =5 bits, so no bits stuffed in here but could count towards bit stuffing in the following fields
+  3. command
+  4. Data
+  5. CRC
+
+- @note CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
+
+- [ ] Need to Remove Ack from bit stuffing as it can change from being sent to being received by other units acknowledging the message.
+- [ ] Add extra dominant delimiter bit before EOF, to make pin change IRC reading work better.
 
 ### CRC Error checking
 

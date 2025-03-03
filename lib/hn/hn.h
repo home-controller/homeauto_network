@@ -35,68 +35,76 @@ typedef uint8_t boolean;
 #endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
-/// @brief The 16 is for the end of frame 7 high bits + Acks 4 high(when sent) + 5 Max.
-/// @note Most of the frame has a 5 bit Max This used to be more before bit stuffing was implemented.
-/// @todo maybe should add a low bit before the Ack(7+4=11) or EOF(5+4=9) bits or even both but that
-/// would only help if the first added bit was set to the inverse of the last CRC bit. Be back to a Max of 7 then
-#define MaxInUseHighBits 16
+/// @brief The 9 is for the CRC(4bits)(5 bits would trigger a stuffed bit) + CRC delimiter(1) + Acks 4 high(when sent). There should also be 3 bits for interframe spacing
+/// after the 7 bit EOF so some leeway after frame.
+/// @note 1. Most of the frame has a 5 bit Max This used to be more before bit stuffing was implemented.
+/// @note 2. Changed this to adding a low bit before the EOF. this used to be longer, maybe change CRC delimiter to inverse of the last CRC bit. Be back to a Max of 7 then
+/// @note 3. Although the Ack delimiter bits should be high with different units all actknownageing it may be possible for them to be pulled low to to some extent. maybe lower
+/// min pulse length check here?
+/// @todo make sure this never exceeds 7 bit in the EOF and 5 in a normal message, if we implement error codes this may change to 6
+/// @todo for this to work maybe change the CRC decimator to be the inverse of the previous bit
+/// @todo check to make sure CRC has bit stuffing.
+#define MaxInUseHighBits 9
 
 // #define CRCError
-#define SOFBits 2  /// @brief The number of SOF (Start of Frame) bits.
+#define SOFBits 2 /// @brief The number of SOF (Start of Frame) bits.
 #define FrameInfoBits 4
-#define CRCBits 5  // 4 CRC bits + 1 Delimiter
-#define AckBits 4
+#define CRCBits 5 // 4 CRC bits + 1 Delimiter
+#define AckBits 5
 #define EOFBits 7
-#define TotalFrameBits (SOFBits + FrameInfoBits + CRCBits + AckBits + EOFBits)  // = 2+4+5+4+7 = 22 Total frame bits not counting and message or data bits.
+#define TotalFrameBits (SOFBits + FrameInfoBits + CRCBits + AckBits + EOFBits) // = 2+4+5+4+7 = 22 Total frame bits not counting and message or data bits.
+#define BeforeMessageBits (SOFBits + FrameInfoBits)
+#define BeforeEOFBits (FrameInfoBits + CRCBits + AckBits) /// @brief This is not counting any SOF bits
 
 #if SOFBits > 1
-#define SOFValue 0b01  // if the number of bit is greater than 1 pull low for (SOFBits - 1) bits then 1 hight bit.
+#define SOFValue 0b01 // if the number of bit is greater than 1 pull low for (SOFBits - 1) bits then 1 hight bit.
 #else
-#define SOFValue 0  // else pull low for 1 bit.
+#define SOFValue 0 // else pull low for 1 bit.
 #endif
 ///
-#define maxDataSize 8         // the maximum data frame size in bytes, the is separate for the message frame. Can only be 0,1,2,4,8,16,32 byte
-#define maxMessageSize 1      // The maximum massage size in bytes.
-#define _pinReg PIND          // read PIND for pins D0 to D7 states
-#define _pinMask 0b00000100;  // Mask for third pin in reg. i.e. on PIND mask for D2
+#define maxDataSize 8        // the maximum data frame size in bytes, the is separate for the message frame. Can only be 0,1,2,4,8,16,32 byte
+#define maxMessageSize 1     // The maximum massage size in bytes.
+#define _pinReg PIND         // read PIND for pins D0 to D7 states
+#define _pinMask 0b00000100; // Mask for third pin in reg. i.e. on PIND mask for D2
 #define _hn_int_pin 2
-#define DataLengthBitsLn 3  // the number of bits storing the message and data frame length in code.
+#define DataLengthBitsLn 3 // the number of bits storing the message and data frame length in code.
 
-#define PulseLength 2048  // 1 bit takes 2048 microseconds (~= 1e6 / 488 = 2049.18) (microsecond = 1 millionth of a second).
-#define BitsPerSecond \
-  488  // this is approx [microseconds in a second]1e6 / 1e6/2048 [1e6/2048=488.28]
-       // used 488 & 2048 as can then shift right 11 to divide by 2048
-       // and the number of bit in a given pulse length can be given by:
-       // bits = t >> 11 and the remaining time by t bitand (2048 - 1)
+#define PulseLength 2048 // 1 bit takes 2048 microseconds (~= 1e6 / 488 = 2049.18) (microsecond = 1 millionth of a second).
+#define BitsPerSecond                                                                                                                                                         \
+  488 // this is approx [microseconds in a second]1e6 / 1e6/2048 [1e6/2048=488.28]
+      // used 488 & 2048 as can then shift right 11 to divide by 2048
+      // and the number of bit in a given pulse length can be given by:
+      // bits = t >> 11 and the remaining time by t bitand (2048 - 1)
 
 // Max number of high bits while sending a message should be 7( see MaxInUseHighBits above) but as bit stuffing is not implemented
 // yet maybe 52(from DESIGN.md).
 // That would give a max high time of: 52 / BitsPerSecond = 52/488 ≅ 0.1 seconds = 100 miliseconds
 // 7 bits would be 7/488 ≅ 14 miliseconds
-#define LineCheckTimeout 500  // 1/2 second. This is just waiting for a message to end so if 1/2 a seconds passes there is must be a problem somewhere.
-#define WaitForLineTimeout (SOFBits + maxMessageSize + maxDataSize)  // This needs to wait for the message to be sent not just the line level to change.
+#define LineCheckTimeout 500 // 1/2 second. This is just waiting for a message to end so if 1/2 a seconds passes there is must be a problem somewhere.
+#define WaitForLineTimeout (SOFBits + maxMessageSize + maxDataSize) // This needs to wait for the message to be sent not just the line level to change.
 
-#define LineUnmonitored 0  // there is no ISR etc. keeping track of the line state
-#define LineFree 1         // The ISR or function keeping track of incoming messages has marked the line as free.
-#define LineInuse 2        // the line is in use. You may need to call exc(); etc. for this to be up to date.
-#define LineMinGap 3       // Make sure there is a gap of at least lineMinGapMs (class var)
+#define LineUnmonitored 0 // there is no ISR etc. keeping track of the line state
+#define LineFree 1        // The ISR or function keeping track of incoming messages has marked the line as free.
+#define LineInuse 2       // the line is in use. You may need to call exc(); etc. for this to be up to date.
+#define LineMinGap 3      // Make sure there is a gap of at least lineMinGapMs (class var)
+#define LineError 4       // There is a line error, when/if implemented this could be a line error code being sent.
 // When using a function to check the line each time through the main loop you will likely need this delay. I needed about 100ms for the test in main.c
 
-#define Error_NoError 0         //  0,  Successfully sent and received Ack.
-#define Error_LineError 1       //  1,  line error.
-#define Error_NoRoomInBuffer 3  //  3,  Not enough or no room to store the info needed in the buffer.
-#define Error_AckError 16       //  16, A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
-#define Error_LostPriority 17   //  17, Higher priority message being sent, received in buffer.
-#define Error_CRCError 33       // CRC received not the same as the 1 from calculating it from the received message+data.
+#define Error_NoError 0        //  0,  Successfully sent and received Ack.
+#define Error_LineError 1      //  1,  line error.
+#define Error_NoRoomInBuffer 3 //  3,  Not enough or no room to store the info needed in the buffer.
+#define Error_AckError 16      //  16, A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
+#define Error_LostPriority 17  //  17, Higher priority message being sent, received in buffer.
+#define Error_CRCError 33      // CRC received not the same as the 1 from calculating it from the received message+data.
 
 ///  18, could be network SOF mismatch on different units,
 /// or network down or not reading all incoming messages properly
 /// or not checking for if in middle of message for example at program start
 /// or if receiving messages and only sending them and not checking for line free.
 #define Error_NetworkProblem 18
-#define Error_UnhandledDataSize 19     // 19 unhandled data size.
-#define Error_AnotherUnit_AckError 20  // Another unit signaled a receive error, i.e. it failed it's CRC check.
-#define Error_EOFCodeStored 21         // End of frame error code stored in private class var: endOfFrameError
+#define Error_UnhandledDataSize 19    // 19 unhandled data size.
+#define Error_AnotherUnit_AckError 20 // Another unit signaled a receive error, i.e. it failed it's CRC check.
+#define Error_EOFCodeStored 21        // End of frame error code stored in private class var: endOfFrameError
 #define Error_LineErrorFrameStart 22
 #define Error_NoMessageStoredToRetrieve 30
 #define Error_MessageNotInBuffer 31
@@ -107,18 +115,19 @@ typedef uint8_t boolean;
 /// @details This has some similarities with the CAN network but is much slower and don't need separate controller and transceiver chips.
 /// @details I am using it to send messages between units on light switches and the units turning the lights on and off.
 /// @details Although to avoid backfeed you may need a transistor a few resistors and 2 IO pins
-class SlowHomeNet {
- public:
+class SlowHomeNet
+{
+public:
   // +++++++++++++++++ Setup +++++++++++++++++++++++++++++++++++++++++
   void attachIntToPin(byte pin);
   byte getPinNo();
-  explicit SlowHomeNet(byte pin);              // class setup procedure, auto called
-  SlowHomeNet(byte pin, byte addDelayToSend);  // class setup procedure, auto called
+  explicit SlowHomeNet(byte pin);             // class setup procedure, auto called
+  SlowHomeNet(byte pin, byte addDelayToSend); // class setup procedure, auto called
 
   //+++++++++++++++++ Receive ++++++++++++++++++++++++++++++++++++++++
-  void exc();  // Need to call each time though the main loop.
+  void exc(); // Need to call each time though the main loop.
   byte receiveMonitor();
-  byte getFromBuf(byte a[], byte &RTR, byte &mLen, byte &dLen);
+  byte getFromBuf(byte a[], byte& RTR, byte& mLen, byte& dLen);
 
   /// @brief Get the number of bytes of received date stored in the receive buffer.
   /// @return bytes in buffer.
@@ -142,7 +151,7 @@ class SlowHomeNet {
   byte getMessageDataLen(byte l);
   byte getLenCode(byte mLen, byte dLen);
 
-  byte Crc4(uint8_t *addr, uint8_t len);
+  byte Crc4(uint8_t* addr, uint8_t len);
   byte Crc4buf(uint8_t i);
 
   /// @brief Get the value in the queue i items back front the head of the queue. No range checking.
@@ -165,19 +174,19 @@ class SlowHomeNet {
   byte inBitPos;
 #endif
 
- private:
+private:
   // wouldn't bother with storing this in SRAM but for to keep the ISR faster.
-  uint8_t pin_bit_msk;  // = digitalPinToBitMask(pin);
-  uint8_t pin_port;     // = digitalPinToPort(pin);
+  uint8_t pin_bit_msk; // = digitalPinToBitMask(pin);
+  uint8_t pin_port;    // = digitalPinToPort(pin);
   // for the MEGA the type may need to be changed to uint16_t
-  volatile uint8_t *pin_DDR_reg;  // = portModeRegister(port);
-  volatile uint8_t *port_IO_reg;  // volatile uint8_t *out = portOutputRegister(port);
+  volatile uint8_t* pin_DDR_reg; // = portModeRegister(port);
+  volatile uint8_t* port_IO_reg; // volatile uint8_t *out = portOutputRegister(port);
   byte networkPin;
-  word bitPulseLength = 2048;  //  1 bit takes 2048 microseconds (~= 1e6 / lineSpeed;) (microsecond = 1 millionth of a second).
+  word bitPulseLength = 2048; //  1 bit takes 2048 microseconds (~= 1e6 / lineSpeed;) (microsecond = 1 millionth of a second).
 
-  word lineSpeed = 1e6 / bitPulseLength;  // giving a line speed of 488 bits per second.
-                                          // Changed from 600 to 488 as this allows shifting right 11 to divide by 2048.
-                                          // so number or bits can be given by t >> 11 and the remaining time by t bitand (2048 - 1)
+  word lineSpeed = 1e6 / bitPulseLength; // giving a line speed of 488 bits per second.
+                                         // Changed from 600 to 488 as this allows shifting right 11 to divide by 2048.
+                                         // so number or bits can be given by t >> 11 and the remaining time by t bitand (2048 - 1)
 
   /// For storing any error codes from other units.
   /// TODO: As well as storing end of frame error codes could also store any code added mid frame by pulling low for 6 connective bits
@@ -201,26 +210,40 @@ class SlowHomeNet {
    * our date without having to check, also makes error checking easier.
    */
   word maxInuseHigh =
-      ((42 * bitPulseLength) + (bitPulseLength >> 2)) / 1000 + 1;  // = 88 = (42 x 2048 + 2048 >> 1) /1000 + 1 = (86,016 + 1024)/1000 + 1 = 87,040 /1000 +1 = 88.04=88
+    ((42 * bitPulseLength) + (bitPulseLength >> 2)) / 1000 + 1; // = 88 = (42 x 2048 + 2048 >> 1) /1000 + 1 = (86,016 + 1024)/1000 + 1 = 87,040 /1000 +1 = 88.04=88
   // Only true when sending only 4 byte of data. 42 x 2048 + 2048 >> 1 = 87,041
   // +1 to round up, as dividing by 1000 is unlikely to be a whole number and int math always rounds down.
 
   // uint32_t maxInuseLow = maxInuseHigh + bitPulseLength;  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
-  word maxInuseLow = maxInuseHigh + bitPulseLength / 1000;  // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
+  word maxInuseLow = maxInuseHigh + bitPulseLength / 1000; // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
   // byte size_of = sizeof(maxInuseLow);
   // word WaitForLineTimeout = 400;  // 4/10th of a second in millisecond (1e-3). different from more accurate timings that are in microseconds (1e-6)
-  byte lineState = 0;  // Line in use
+  byte lineState = 0; // Line in use etc. see #defines above.
 
-  unsigned long lastTime;  // In micros. 1/million of a second
+  //===========================================ISR vars=======================================
+  // moved here from having as static in func as I think(?) that would limit to 1 pin.
+
+  unsigned long lastTime; // In micros. 1/million of a second
   volatile unsigned long CurrentTime;
 
-  /// @brief pitPos is the bit position of the last received bit, any lead-in bit(s) are not counted. Or stuffed bits.
+  // BitPos is the bit position of the last received bit, any lead-in bit(s) are not counted. Or stuffed bits.
   /// TODO: If only used in IntCallback(); might be better as a "static" type.
-  byte lastState = 1;  // used by the ISR, leaving this as a separate var as this could still be used at the same time as the send/receive funcs
+  /// @todo would using static function vars limit us to using 1 line/pin?
+  // byte lastState = 1;  // used by the ISR, leaving this as a separate var as this could still be used at the same time as the send/receive funcs
 
-  byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
-  byte dFlags = 0;                 // parity bit is b00000001, ack is b00000010
+  byte dFlags = 0; // parity bit is b00000001, ack is b00000010
   bool bufferOverflow = false;
+  byte bitsCount = 0;
+  byte bitsStore = 0;
+  boolean expectStuffedBit =
+    false; /// @brief After 5 bits in a row of the same level and if we are in the right part of the frame this is set to true so the next bit is removed
+  byte messageLen = 0;
+  // Note the "lineState" var is also used in the ISR
+
+  //------------------------------------ISR vars-------------------------------------
+
+  /// @note // not used??
+  // byte bufIndexPartMessageAt = 0;  /// @brief The buffer array index for the start of the message we are part way through receiving and storing.
 
   /**
    * @brief bitCountUnchanged & lastBitLevel are used to add a bit of oppsite level when 5 or more bits sent are the same level and to remove
@@ -233,12 +256,12 @@ class SlowHomeNet {
    * checkSOF() initializes the values. for reading
    * Maybe readBits should be changed so it only removes opersite bits after 5 consecutive bits, this way it could also read EOF and maybe long SOFs
    */
-  byte bitCountUnchanged = 0;                    /// The the number of bits of the same level sent. (Used to insert the opset bit if gets to 5.)
-  boolean lastBitLevel = HIGH;                   /// the line level of the last bit sent or received
-  byte dataArray[maxMessageSize + maxDataSize];  // beside using this to send different size messages and data, the CRC function wants it all in one array.
-  byte RTRLenCode;                               // The RTR in the high bit plus the length code. Class var.
-  byte mHandled;                                 // This message was handled by a different unit.
-  word lineMinGapMs = 100;                       // wait needed between sending 2 messages when checking in main loop
+  byte bitCountUnchanged = 0;                   /// The the number of bits of the same level sent. (Used to insert the opset bit if gets to 5.)
+  boolean lastBitLevel = HIGH;                  /// the line level of the last bit sent or received
+  byte dataArray[maxMessageSize + maxDataSize]; // beside using this to send different size messages and data, the CRC function wants it all in one array.
+  byte RTRLenCode;                              // The RTR in the high bit plus the length code. Class var.
+  byte mHandled;                                // This message was handled by a different unit.
+  word lineMinGapMs = 100;                      // wait needed between sending 2 messages when checking in main loop
   // TODO should maybe use #ifdef to remove uneeded vars? When not needing to wait between messages etc.
 
   byte dataIn = 0;
@@ -253,11 +276,11 @@ class SlowHomeNet {
    * network with not much more than a libary change to the code.
    */
 
-#define DigitalWriteTime 4    // forums says 4.5µs but I think than includes the for loop
-#define DigitalReadTime 5     // forums says 4.78µs but I think than includes the for loop
-#define ReadBitsLoopMicros 3  // this is for each time though the loop that checks 8 time per bit so a value of 3 would be 24µs per bit
+#define DigitalWriteTime 4   // forums says 4.5µs but I think than includes the for loop
+#define DigitalReadTime 5    // forums says 4.78µs but I think than includes the for loop
+#define ReadBitsLoopMicros 3 // this is for each time though the loop that checks 8 time per bit so a value of 3 would be 24µs per bit
 
-  byte parityErrorCount = 0;  // If parity fail int this and discard. Not put in buffer.
+  byte parityErrorCount = 0; // If parity fail int this and discard. Not put in buffer.
 
   circular_bufC buf;
 
@@ -292,7 +315,7 @@ class SlowHomeNet {
   byte checkSOF();
   byte receiveRest(byte bitPos);
 
-  void IntCallback();  // Store 3 line change timings and discared any short enough to be bounce or a line spike. Although would this be a thing?
+  void IntCallback(); // Store 3 line change timings and discared any short enough to be bounce or a line spike. Although would this be a thing?
 };
 
 #endif
