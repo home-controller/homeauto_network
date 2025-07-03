@@ -1552,7 +1552,7 @@ SlowHomeNet::IntCallback()
 
     mod_t = (word)t & 0x7ff; //= 11 bit mask (0x7ff = 2048 - 1 = 2^11 - 1 = 0b11111111111)
     // if remainder is greater than bitPulseLength divided by 2 then add 1 bit
-    // to bitsSent.
+    // to bitsStore.
     if (mod_t >= (bitPulseLength >> 1))
         bitsSentNew++; // t now = the number of bits sent with the last line
                        // pulse length.
@@ -1589,11 +1589,11 @@ SlowHomeNet::IntCallback()
             return;
         }
     }
-    bitsSent <<= bitsSentNew; // make room for new bits
+    bitsStore <<= bitsSentNew; // make room for new bits
                               // if new bits are high set them to 1s
     bitPos += bitsSentNew;
 
-    if (bitsSent + bitPos >= 8) { // If we have 8 bits store them in the buffer.
+    if (bitsStore + bitPos >= 8) { // If we have 8 bits store them in the buffer.
 
         if (overflowCount < 0xFF) overflowCount++;
         bitPos = 0;

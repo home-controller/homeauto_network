@@ -1,15 +1,10 @@
 {
-    "cSpell.enableFiletypes": [
-        "properties"
-    ],
+    "cmake.configureOnOpen": false,
     "cSpell.words": [
-        "Arjen",
-        "COBJECTS",
-        "dscrc",
-        "interframe",
-        "libnewlib",
-        "nanoatmega",
-        "PORTD",
-        "xxyyyyy"
-    ]
+        "ricaun",
+        "STRINGIZE",
+        "SWITCHCAPVCC",
+        "WDTO"
+    ],
+    "C_Cpp.intelliSenseEngine": "default"
 }

@@ -2,14 +2,20 @@
 
 - [Design document](#design-document)
   - [Design](#design)
-    - [Lets go with](#lets-go-with)
+    - [The message frame](#the-message-frame)
+      - [Also note:](#also-note)
     - [Interframe Space](#interframe-space)
       - [By default the minimum bit length is](#by-default-the-minimum-bit-length-is)
     - [Maximum consecutive bits of the same value](#maximum-consecutive-bits-of-the-same-value)
+      - [Fields that have bit stuffing:](#fields-that-have-bit-stuffing)
     - [CRC Error checking](#crc-error-checking)
     - [Timings and Transmission speed](#timings-and-transmission-speed)
     - [Minimal needed to work for controlling lights with switches and temp](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
     - [Read bus](#read-bus)
+      - [Mcu pins used:](#mcu-pins-used)
+      - [Different methods to receive the bits sent on the line](#different-methods-to-receive-the-bits-sent-on-the-line)
+        - [Not using timers/interrupts](#not-using-timersinterrupts)
+        - [Using timers/interrupts](#using-timersinterrupts)
       - [Use Pin change interrupt to read the message](#use-pin-change-interrupt-to-read-the-message)
   - [Can protocol web pages](#can-protocol-web-pages)
     - [Cable lengths](#cable-lengths)
@@ -21,26 +27,7 @@
 
 ## Design
 
-### Lets go with
-
-1. For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
-
-2. bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started.
-3. bits[1] RTR (Remote Transmission Request).
-    - RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
-    - We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would not longer work.
-4. bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
-5. bits[8] command id. Maybe this should be moved down 2 rows?
-6. bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
-7. bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now, probably should change to 8 bits
-8. bits[1]: CRC delimiter. Delimiter is high. Maybe should be inverse of preceding bit?
-9. bits[1] Ack bit. Like CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
-10. bits[1] Ack delimiter bit (this high to?)
-11. bits[1] Ack bit. This is pulled low by any unit that can handle the message i.e. if the message was light switch turned on then this unit will turn on the light.
-12. bits[1] Ack delimiter bit, need this so the replying unit has some timing leeway
-13. bits[1] Extra dominant(pulled low) delimiter bit. Needed to use pin change ISR as without this all CRC + Ack bits could be high, therefore there could be no pin change after the message is sent.Also a lot of bit in a row could be high, As the other delimiter bits should be high it should now have pin changes
-14. bits[7] EOF 7 bit end of fame.
-15. bits[3] Interframe Space. Most(all??) CAN controllers seem to add a delay of 3 bits between sending frames to give the controllers time for housekeeping etc.
+### The message frame
 
 ```fixed width text
 |SF|R|lll|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|A|DD|eeeeeee|iii
@@ -48,12 +35,37 @@
 |01|?|1??|????????|????????????????|????|1|?|1|?|10|1111111|111| the bits value.
 ```
 
-Max at one level is 5 after that 1 bit is added at the opposite level but this
+* bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started.
+* bits[1] RTR (Remote Transmission Request).
+    - RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
+    - We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would not longer work.
+* bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
+* bits[8] command id.
+* bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
+* bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now, probably should change to 8 bits
+* bits[1]: CRC delimiter. Delimiter is high. Maybe should be inverse of preceding bit?
+* bits[1] Ack bit. Like CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
+* bits[1] Ack delimiter bit (this high to?)
+* bits[1] Ack bit. This is pulled low by any unit that can handle the message i.e. if the message was light switch turned on then this unit will turn on the light.
+* bits[1] Ack delimiter bit, need this so the replying unit has some timing leeway
+* bits[1] Extra dominant(pulled low) delimiter bit. Needed to use pin change ISR as without this all CRC + Ack bits could be high, therefore there could be no pin change after the message is sent.Also a lot of bit in a row could be high, As the other delimiter bits should be high it should now have pin changes
+* bits[7] EOF 7 bit end of fame.
+* bits[3] Interframe Space. Most(all??) CAN controllers seem to add a delay of 3 bits between sending frames to give the controllers time for housekeeping etc.
+
+#### Also note: 
+* For the collision detection to work properly and the smallest number to have priority the MSB(most significant bit) needs to be sent first.
+* Max at one level is 5 after that 1 bit is added at the opposite level but this
 can add to the length of time needed to send a frame.
+  * This does not include the Ack, EOF field and 'Interframe Space' at the end of the frame.
+  * For more detail see below
+* Changed to adding a low bit before the EOF. 
+* At max there is 9 high bits in a row if CRC + all Ack are high.
+  * Maybe change CRC delimiter to inverse of the last CRC bit. Be back to
+/// a Max of 7 then
 
 ### Interframe Space
 
-- [ ] Should we add this from Microchip CAN controller?
+- [x] Added this from Microchip CAN controller?
 
 Below is copied from microchips MCP2515-Family-Data-Sheet-DS20001801K.pdf
 
@@ -93,21 +105,22 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 ### Maximum consecutive bits of the same value
 
 1. [x] On a lower level limit the max consecutive bits of the same value sent to have max time of having the line HIGH and LOW to make the timing more forgiving. Should probably use CAN style, add a inverted bit if long sequence(5 for CAN) of high or low bits instead of relying on parity bit.
-   1. [ ] TODO If the Ack bits are high the last 4+7=11 bits will be high as no bit stuffing in the EOF 7 bits.
-   1. [ ] Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low. Even if this is not a problem at the default low of speed we might want the code to be capable of increasing the bitrate? I think it should probably be in the CRC but not the Ack.
-   1. [ ] @bug At the min the Ack bits have extra stuffing bits removed as received but should be done as all high as that is how they are sent.
+* [x] Added low bit before EOF to bring this back to 7 max 
+     * TODO  If the Ack bits are high the last 4+7=11 bits will be high as no bit stuffing in the EOF 7 bits.
+* [x] Decided to remove bit stuffing in the Ack. 
+    * Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low. Even if this is not a problem at the default low of speed we might want the code to be capable of increasing the bitrate? I think it should probably be in the CRC but not the Ack.
 
-- Fields that have bit stuffing:
-  1. SOF is 01 by default, but if the length is increase for 5 or more leading 0(dominant) bits? @todo not sure if the leading 0s have bit stuffing or if they should have, I will worry about that if I ever need more than 4 leading zeros.
-  2. Last high bit of SOF(1) + RTR(1) + length field(3) =5 bits, so no bits stuffed in here but could count towards bit stuffing in the following fields
-  3. command
-  4. Data
-  5. CRC
+#### Fields that have bit stuffing:
+  * SOF is 01 by default, but if the length is increase for 5 or more leading 0(dominant) bits? @todo not sure if the leading 0s have bit stuffing or if they should have, I will worry about that if I ever need more than 4 leading zeros.
+  * Last high bit of SOF(1) + RTR(1) + length field(3) =5 bits, so no bits stuffed in here but could count towards bit stuffing in the following fields
+  * command
+  * Data
+  * CRC
 
 - @note CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
 
-- [ ] Need to Remove Ack from bit stuffing as it can change from being sent to being received by other units acknowledging the message.
-- [ ] Add extra dominant delimiter bit before EOF, to make pin change IRC reading work better.
+- [x] Bit stuffing removed from ack fields.
+- [x] Add extra dominant delimiter bit before EOF, to make pin change IRC reading work better.
 
 ### CRC Error checking
 
@@ -118,6 +131,10 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 - Using a bit timing length of 2048µs gives a lines speed of approx 488 bit/s for the bandwidth.
 - The number of high or low bits can then be calculated with shift left(11 = div 2048) and bitwise AND, no need for MCU div. Could go 2 or 4 time faster but if the MCU is trying to use onewire etc. at the same time I was thinking the slower the better. Want to keep the timing code as fast as possible as some of it needs to be in an ISR.
 - At 488 bit/s and with 1 message taking 20 bits min and 59 max message, time is approx 24th of a second min and approx one 8th of a second slowest.
+- There are 32,768 instruction cycles in 2048 microseconds on an Arduino Uno running at 16MHz.
+  - 2048 µs=2048×10−6 s=0.002048 seconds
+  - Number of cycles = Clock speed (cycles/second) × Time (seconds) So
+  - Number of cycles = 16,000,000 cycles/s×0.002048 s = 32,768
 
 ### Minimal needed to work for controlling lights with switches and temp
 
@@ -135,14 +152,44 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 - - [ ] TODO Add code to try and make sure we do not start receiving a message in the middle of a frame.
 
 ### Read bus
+#### Mcu pins used:
+* 1 MCU pin
+  * Downsides
+    * Hard to stop back powering the board from the can line if not all units on the line always turn on(and off) at the same time.
+    * The MCU has little protection from line nose etc.
+* 2 MCU pins
+  * Plus 
+    * With a resistor and Zener Should stop back powering the board at lest enough to not drag the line down.
+    * Makes level shifting the voltage easier
+    * As will use a a transistor for send can use a stronger pullup for the line. (more nodes/ more robust?)
+    * Could use a can transceiver chip if you really want to, might as well use can at than point though
 
-- [ ] Read option with ISR on pin change to just store starting time then disable pin interrupts and enable general interrupts and then just call the readMessage() function. This might play badly with other time critical stuff though.
-- [ ] Options to have receiving unit(s) use extra wire with interrupt or a week pull-down with 1 controller so the controller can check each time through the main loop.
-- [x] Maybe have an option to increase the start pull-down length so it would be long enough that it would stay low for 1 time through the main loop. then you would not need to use interrupts to read. With the ack bit implemented the sender would resend so would not have to catch if doing more than normal in the main loop. Would also need to add 1 high bit at end of SOF (Start of Frame).
+#### Different methods to receive the bits sent on the line
+* [x] Added an option to increase the start pull-down length so it would be long enough that it would stay low for 1 time through the main loop. then you would not need to use interrupts to read. With the ack bit implemented the sender would resend so would not have to catch if doing more than normal in the main loop. Would also need to add 1 high bit at end of SOF (Start of Frame).
+- [x] Some CAN standards check the level of the pulse 87.5 percent along the pulse length, this gives any reflections/ringing time to settle, see: <http://www.bittiming.can-wiki.info/>
+
+##### Not using timers/interrupts
+- [ ] Receive only just turning off a relay etc.
+
+- [ ] Receive only plus:
+  * Could also send replies when asked, maybe temp for example. If the only accepted message is temp for example it really wouldn't matter if any other messages sent on the line are missed as would just be a repeat anyway.
+  * Also could do simple checks while monitoring the line, just checking for switch change for example.
+    * As long as the check don't take more time than say 1/2 the time to send a bit on the line
+    * As that is over 16,000 one cycle MCU instructions, as long as we are not doing things like writing to the terminal etc. we could do a fair bit.
+  * Although if not doing a lot likely fine to use IRC to.
+
+- [ ] Check each time through the main loop.
+  * if the main loop takes under 16,000 one cycle machine code instructions of time this should sort of work
+  * Or if we rely on any messages being resent if missed
+  * Or do not care much if messages are missed.
+
+##### Using timers/interrupts
+- [ ] Use ISR on pin change to just store starting time then disable pin interrupts and enable general interrupts and then just call the readMessage() function. 
+  * This might play badly with other time critical stuff though.
+
 - [ ] Implement pin change interrupt line reading.
 - [ ] Alternative first interrupt sets up a timer. Could even use pin change interrupt to correct timing at guaranteed bit change points.
 - [ ] TODO: interrupt version, a way to tun off the intercept when doing time sensitive stuff. Will need at least Ack for this.
-- [x] Some CAN standards check the level of the pulse 87.5 percent along the pulse length, this gives any reflections/ringing time to settle, see: <http://www.bittiming.can-wiki.info/>
 
 #### Use Pin change interrupt to read the message
 
@@ -157,9 +204,10 @@ This it for using the pin change interrupt to keep track of the timings and not 
 - Storing the number of bits rather then converting to the message value works better as 0 can than be use to show the start of the next message.
 - We also need to keep the time spent in the ISR to the minimum.
 - [ ] Each time through the main loop remove any messages from the buffer.
+- [ ] Could also use a timer interrupt
 - Should only compleat messages be removed from the buffer, or compleat bytes or compleat messages.
 - I think I will go with for now having an array for 1 message and moving the message to the array as each field or byte is received.
-- so each time through the main loop:
+- so each time through the main loop(or timmer interrupt):
    1. Check if we are receiving a message 0b111
    1. If we are check if the time since last pin change is > max for 8 bits and if so reset vars and maybe rase an error.
    1. Move message bits from buffer to message if there there is room and we have enough.

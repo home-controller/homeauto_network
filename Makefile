@@ -17,7 +17,7 @@ AED_DIR = $(HOME)/doc/src/Arduino
 LIB_DIR = $(AED_DIR)/libraries/**/src
 
 #VSCode extensions dir.
-VSE_DIR = $(AED_DIR)/vscode/extensions
+VSE_DIR = $(AED_DIR)/vscode/insiders/extensions
 
 # Search path for header files
 #CFLAGS += -I$(SRC_DIR)/average
@@ -83,7 +83,7 @@ test_clean:
 
 .PHONY: edit
 edit:
-	code-insiders --extensions-dir="$(VSE_DIR)/insiders" homeauto_network.code-workspace
+	code-insiders --extensions-dir="$(VSE_DIR)" homeauto_network.code-workspace
 
 #list connected devises
 .PHONY: list

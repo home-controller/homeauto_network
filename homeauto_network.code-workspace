@@ -13,31 +13,26 @@
 			"Arjen",
 			"buildflag",
 			"COBJECTS",
+			"COMPA",
 			"CSOURCES",
 			"dscrc",
 			"homeauto",
+			"interframe",
 			"Lentz",
+			"libnewlib",
 			"nanoatmega",
+			"OCIE",
+			"PCICR",
+			"PINB",
 			"PORTD",
 			"SWITCHCAPVCC",
+			"TCCR",
+			"TIMSK",
+			"vect",
 			"WDTO",
 			"XIAO",
 			"xxyyyyy"
 		],
-		"files.associations": {
-			"algorithm": "cpp",
-			"memory": "cpp",
-			"numeric": "cpp",
-			"stop_token": "cpp",
-			"*.tcc": "cpp",
-			"istream": "cpp"
-		},
-		"docwriter.style": "Auto-detect",
-		"docwriter.progress.trackFunctions": true,
-		"docwriter.progress.trackClasses": true,
-		"docwriter.progress.trackTypes": true,
-		"docwriter.hotkey.mac": "⌘ + .",
-		"todo-tree.tree.scanMode": "open files",
-		"C_Cpp.clang_format_style": "file"
+		"makefile.configureOnOpen": false
 	}
 }
