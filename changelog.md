@@ -11,3 +11,10 @@
     0.1.2
         1. Add ISR for receiving messages
         2. test
+>   
+    0.1.3
+        - Changed CRC from 4 bits to 8
+        - Added timer1 read method
+        - Changed MessageId byte length from code to be 1 or 2 bytes depending on number of data bytes
+        - Bit stuffing removed from ack fields.
+        - Add extra dominant delimiter bit before EOF, to make pin change IRC reading work better.

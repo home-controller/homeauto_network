@@ -16,7 +16,8 @@
  * For more detail about the protocol etc. see: DESIGN.md and the README.md
  */
 
-#include <hn.h>
+#include "hn.h"
+#include <avr/pgmspace.h>
 /*
  * slow Home Network.
  * 1: The line is pullup so to send data first pull it low.
@@ -37,10 +38,7 @@
  * modules. Hopefully. :) very loosely
  */
 
-void
-SlowHomeNet::attachIntToPin(byte pin)
-{
-}
+void SlowHomeNet::attachIntToPin(byte pin) {}
 
 /// @brief Slow home network.
 /// @param pin The MCU pit to use.
@@ -72,8 +70,7 @@ SlowHomeNet::SlowHomeNet(byte pin, byte addDelayToSend)
     lineState = LineMinGap;
 }
 
-void
-SlowHomeNet::exc()
+void SlowHomeNet::exc()
 {
     // Todo / This could either handle stuff stored from the pin change
     // interrupt . Or message stored during failed send.
@@ -92,8 +89,7 @@ SlowHomeNet::exc()
  * @return boolean True for successful send, false if a higher priority message
  * pulled the line low.
  */
-boolean
-SlowHomeNet::sendBitH()
+boolean SlowHomeNet::sendBitH()
 {
     byte y;
     pinMode(networkPin, INPUT_PULLUP);
@@ -114,8 +110,7 @@ SlowHomeNet::sendBitH()
  * implementations
  *
  */
-void
-SlowHomeNet::sendBitL()
+void SlowHomeNet::sendBitL()
 {
     pinMode(networkPin, OUTPUT);
     digitalWrite(networkPin, LOW);
@@ -141,8 +136,7 @@ SlowHomeNet::sendBitL()
  * bit lead out. Default=false, will send extra bits.
  * @return byte. 0 for success or else the bit number the collision was on.
  */
-byte
-SlowHomeNet::sendBits(byte bits, byte numberOfBits, boolean stuffBitOverride)
+byte SlowHomeNet::sendBits(byte bits, byte numberOfBits, boolean stuffBitOverride)
 {
 #ifndef noMcu_buildflag
     byte x, bitLevel;
@@ -196,18 +190,10 @@ SlowHomeNet::sendBits(byte bits, byte numberOfBits, boolean stuffBitOverride)
  * (`pin_DDR_reg`) is clear (equal to 0), which means the pin is set as an
  * input.
  */
-boolean
-SlowHomeNet::checkPinInput()
-{
-    return ((*pin_DDR_reg & pin_bit_msk) == 0);
-} ///< If bit = 0 then pin is input.
+boolean SlowHomeNet::checkPinInput() { return ((*pin_DDR_reg & pin_bit_msk) == 0); } ///< If bit = 0 then pin is input.
 
 /// @return returns the pin this network is using.
-byte
-SlowHomeNet::getPinNo()
-{
-    return networkPin;
-}
+byte SlowHomeNet::getPinNo() { return networkPin; }
 // void SlowHomeNet::pin(byte p) {
 //     networkPin=p;
 // }
@@ -219,8 +205,7 @@ SlowHomeNet::getPinNo()
 /// @param RTR If this is a Remote Transmission Request, can be 0b1 or
 /// 0b10000000 etc.
 /// @return 0 for success or 3 if not enough room in buffer.
-byte
-SlowHomeNet::pushDataLen(byte l, byte RTR = 0)
+byte SlowHomeNet::pushDataLen(byte l, byte RTR = 0)
 {
     byte t;
     t = getDataLen(l); // t needs to be the number of bytes stored including the
@@ -240,8 +225,7 @@ SlowHomeNet::pushDataLen(byte l, byte RTR = 0)
 /// pushes the message.
 /// @param m message id.
 /// @return 0 for success.
-byte
-SlowHomeNet::pushMessageId(byte m)
+byte SlowHomeNet::pushMessageId(byte m)
 {
     // byte t = sendBits(m, 8);
 
@@ -258,8 +242,7 @@ SlowHomeNet::pushMessageId(byte m)
 /// if not there is a problem with missing messages, SOF length mismatch between
 /// units or other hardware/software problems.
 /// @note 3. This sets up the bit stuffing vars
-byte
-SlowHomeNet::sendStartOfFrame()
+byte SlowHomeNet::sendStartOfFrame()
 {
     byte r;
     if (SOFBits <= 1) lastBitLevel = HIGH; // When startling to send the line should be free, i.e. High
@@ -285,8 +268,7 @@ SlowHomeNet::sendStartOfFrame()
 /// @param v the bit to send.
 /// @return If another unit has priority(sending 0 when we send 1) return their
 /// value else return v
-byte
-SlowHomeNet::sendRTR(byte v)
+byte SlowHomeNet::sendRTR(byte v)
 {
     // v = v bitand 0b1;
     if (sendBits(v, 1) > 0) {
@@ -297,8 +279,7 @@ SlowHomeNet::sendRTR(byte v)
 /// @brief Send the code for the length of data being sent.
 /// @param v The data length code.
 /// @return the code sent on the bus, not necessarily form this node.
-byte
-SlowHomeNet::sendDataLen(byte v)
+byte SlowHomeNet::sendDataLen(byte v)
 {
     byte sb = sendBits(v, DataLengthBitsLn);
     if (sb > 0) {
@@ -318,8 +299,7 @@ SlowHomeNet::sendDataLen(byte v)
 /// @brief Sends 1 byte of data.
 /// @param v 8 bits of data to send.
 /// @return The data sent on the bus, not necessarily form this node.
-byte
-SlowHomeNet::sendMessageId(byte v)
+byte SlowHomeNet::sendMessageId(byte v)
 {
     // v = v bitand 0b1;
     byte sb = sendBits(v, 8);
@@ -332,14 +312,9 @@ SlowHomeNet::sendMessageId(byte v)
     } else return v;
 }
 
-byte
-SlowHomeNet::sendData(byte v)
-{
-    return sendMessageId(v);
-}
+byte SlowHomeNet::sendData(byte v) { return sendMessageId(v); }
 
-word
-SlowHomeNet::sendData(word v)
+word SlowHomeNet::sendData(word v)
 {
     word b1 = sendMessageId(highByte(v)); // try to send fist send high byte.
     if (b1 == highByte(v)) { return ((b1 << 8) + sendMessageId(lowByte(v))); }
@@ -350,8 +325,7 @@ SlowHomeNet::sendData(word v)
 /// only fail if there is a line error.
 /// @param v The CRC to send.
 /// @return The CRC sent on the bus, not necessarily form this node.
-byte
-SlowHomeNet::sendCRC(byte v)
+byte SlowHomeNet::sendCRC(byte v)
 { // this shouldn't fail as all the date is already sent. Also sends
     // the CRC delimiter
     // v = v bitand 0b1;
@@ -373,8 +347,7 @@ SlowHomeNet::sendCRC(byte v)
 /// @param v 1 or 0 for the ack bit, 0 indicates crc error.
 /// @return 0 for v successful sent, 1 for line pulled low when v = 1,
 /// indicating some other unit had a receiving error.
-byte
-SlowHomeNet::sendAck(byte v)
+byte SlowHomeNet::sendAck(byte v)
 {
     byte r = sendBits(v, 1);
     sendBits(1, 1);
@@ -386,8 +359,7 @@ SlowHomeNet::sendAck(byte v)
 /// @return 0 for no errors, 1 for errors. return value is temporary
 /// @todo error handling is not decided yet. For now storing in endOfFrameError
 /// the remaining EOF bits after the first pul low.
-byte
-SlowHomeNet::sendEndOfFrame()
+byte SlowHomeNet::sendEndOfFrame()
 {
     byte sb = sendBits(0xFF, 7, true); // bit stuffing turned off = true.
     if (sb > 0) {
@@ -409,8 +381,7 @@ SlowHomeNet::sendEndOfFrame()
 /// command byte starts at dataArray[0]
 /// @param command The 1 byte message ID to be stored in dataArray[0]
 /// @return 0, The code for the number of bytes stored(1 message byte).
-byte
-SlowHomeNet::setDataArray(byte command)
+byte SlowHomeNet::setDataArray(byte command)
 {
     Serial.print(F("Start of setDataArray("));
     Serial.print(command);
@@ -424,8 +395,7 @@ SlowHomeNet::setDataArray(byte command)
 /// @param command The 1 byte message ID to be stored in dataArray[0]
 /// @param data This needs to be of type byte as function overloading is used.
 /// @return 1, The code for the number of bytes stored(1 message and 1 data).
-byte
-SlowHomeNet::setDataArray(byte command, byte data)
+byte SlowHomeNet::setDataArray(byte command, byte data)
 {
     dataArray[0] = command;
     dataArray[1] = data;
@@ -437,8 +407,7 @@ SlowHomeNet::setDataArray(byte command, byte data)
 /// @param data The data to store to then send. This needs to be of type word as
 /// function overloading is used.
 /// @return 2: The code for the number of bytes stored(1 message and 2 data).
-byte
-SlowHomeNet::setDataArray(byte command, word data)
+byte SlowHomeNet::setDataArray(byte command, word data)
 {
     if (sizeof(dataArray) >= 3) {
         dataArray[0] = command;
@@ -453,11 +422,10 @@ SlowHomeNet::setDataArray(byte command, word data)
 /// @param l the number of bytes to send. The high order bytes are stored first
 /// at dataArray[0]
 /// @return The number of bytes stored.
-byte
-SlowHomeNet::setDataArray(byte command, uint32_t data, byte l)
+byte SlowHomeNet::setDataArray(byte command, uint32_t data, byte l)
 {
     byte x;
-    if (l > maxDataSize + maxMessageSize) l = maxDataSize + maxMessageSize;
+    if (l > MaxDataSize + MaxMessageSize) l = MaxDataSize + MaxMessageSize;
     dataArray[0] = command;
     for (x = (l + 1) - 1; x >= 0; x--) { // the + 1 is for the command length in bytes
         dataArray[x] = ((byte)(data bitand 0xFF));
@@ -476,11 +444,7 @@ SlowHomeNet::setDataArray(byte command, uint32_t data, byte l)
 /// @param data A byte of data to send.
 /// @return 0 for success or an error code, see sendHelper() function or look at
 /// error code #defines in top of header file
-byte
-SlowHomeNet::send(byte command, byte data)
-{
-    return sendHelper(0, 1, setDataArray(command, data));
-};
+byte SlowHomeNet::send(byte command, byte data) { return sendHelper(0, 1, setDataArray(command, data)); };
 
 /// @brief  For sending message with no data, Will wait for line to be free
 /// @param command A byte Representing the command byte(or message Id) that you
@@ -490,11 +454,7 @@ SlowHomeNet::send(byte command, byte data)
 /// different units on the network
 /// @return 0 for success or an error code, see sendHelper() function or look at
 /// error code #defines in top of header file
-byte
-SlowHomeNet::send(byte command)
-{
-    return sendHelper(0, 1, setDataArray(command));
-};
+byte SlowHomeNet::send(byte command) { return sendHelper(0, 1, setDataArray(command)); };
 
 /// @brief  Send message id and data(16 bits), will wait for line to be free
 /// @param command A byte Representing the command byte(or message Id) that you
@@ -502,8 +462,7 @@ SlowHomeNet::send(byte command)
 /// @param data A word(uint16_t) of data to send.
 /// @return 0 for success or an error code, see sendHelper() function or look at
 /// error code #defines in top of header file
-byte
-SlowHomeNet::sendW(byte command, word data)
+byte SlowHomeNet::sendW(byte command, word data)
 {
     byte t = setDataArray(command, data);
     if (t != 2) return Error_Array_to_small;
@@ -526,8 +485,7 @@ SlowHomeNet::sendW(byte command, word data)
  * has invalid value. (code error)
  * TODO this whole function should probably be rewritten to be clearer.
  */
-byte
-SlowHomeNet::checkLineFreeState(boolean wait, word timeout)
+byte SlowHomeNet::checkLineFreeState(boolean wait, word timeout)
 {
     unsigned long startTime;     //, currentTime;
     if (lineState == LineFree) { // lineState is a class var that the ISR etc. can keep
@@ -602,8 +560,7 @@ SlowHomeNet::checkLineFreeState(boolean wait, word timeout)
  *
  * @todo Add more error checking
  */
-byte
-SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeCheck)
+byte SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeCheck)
 {
     byte sent, crc, t, dataLenCode, i;
     // byte crcBuf[2];
@@ -763,8 +720,7 @@ SlowHomeNet::sendHelper(byte RTR, byte mLen, byte dLen, boolean lineFreeCheck)
  * @todo Send handled Ack for messages we can handle.
 
  */
-byte
-SlowHomeNet::receiveRest(byte bitPos)
+byte SlowHomeNet::receiveRest(byte bitPos)
 {
     byte r, crc, t, i, ack, return_error;
     byte mLen; // length in bytes.
@@ -934,8 +890,7 @@ SlowHomeNet::receiveRest(byte bitPos)
  * @param level Level to check against. Or check against current level if > 1.
  * @return boolean return true if the line level changed else false.
  */
-boolean
-SlowHomeNet::monitorLinePinForChangeMs(word ms, byte level /*  = 1 */)
+boolean SlowHomeNet::monitorLinePinForChangeMs(word ms, byte level /*  = 1 */)
 {
     byte c = 0;
     byte f = 0;
@@ -975,8 +930,7 @@ SlowHomeNet::monitorLinePinForChangeMs(word ms, byte level /*  = 1 */)
  * @todo some CAN standards check the level of the pulse 87.5 percent along the
  * pulse length this gives any ringing time to settle.
  */
-boolean
-SlowHomeNet::monitorLinePinForChange(byte pulses, byte level = 1)
+boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level = 1)
 {
     byte x, c = 0;
     if (level > 1) level = digitalRead(networkPin);
@@ -1003,7 +957,9 @@ SlowHomeNet::monitorLinePinForChange(byte pulses, byte level = 1)
 }
 
 /**
- * @brief Check network IO pin and send first pull low bit. If success the pin
+ * @brief 
+ * 
+ *
  * will be left pulled LOW.
  *
  * TODO: For now this is ok but in most cases every unit should be receiving all
@@ -1033,65 +989,66 @@ SlowHomeNet::getNetwork()
     return false;
 }
 
-/// @brief Convert data length code to data length in bytes, this don't count
-/// the message id.
-/// @param l Length code, only the 3 lower bit are used.
-/// @return Length in bytes, shift left 3 to get bits. Max bytes of data is 4
-/// bytes.
-/// @details the space in the frame could be up to bytes but limiting to not hog
-/// line
-byte
-SlowHomeNet::getDataLen(byte l)
+/**
+ * @brief Calculates the data length in bytes based on a 3-bit length code. this don't count the message id length.
+ *
+ * @details
+ * This function extracts the lower 3 bits of the input value 'l' to obtain a length code,
+ * which is then mapped to a data length as follows:
+ *   - For codes 0, 1, or 2: returns the code itself (i.e., 0, 1, or 2).
+ *   - For codes 3 to 7: returns 2^(code - 1). 4,8,16,32,64 bytes or 32,64,128,256,512 bits
+ *
+ * This mapping is typically used to interpret encoded data length fields in network protocols,
+ * where the length is either a small fixed value or an exponential value for larger payloads.
+ * @note The data length should probably not exceed 4 bytes(code 3) (32 bits) in most cases, as any more will hog the line for too long.
+ * at a data rate of 488 bits per second, this means a duration of about 32/488 ≈ 0.065 seconds just for the data, the whole message could take 
+ * ≈ 0.15 seconds depending on bits stuffed in the message.
+ *
+ * @param l The encoded length value (only the lower 3 bits are considered).
+ * @return The decoded data length in bytes, multiply by 8 for bits.
+ */
+byte SlowHomeNet::getDataLen(byte l)
 {
-    l = l bitand 0b111; // the length code can also have the RTR in the high bit.
-    if (l <= 2) return l;
-    if (l == 3) return 4;
-    if (l == 4) return 8;
-    if (l == 5) return 16;
-    if (l == 6) return 32;
-    if (l == 7) return 64;
-    // error undefined for code greater than 3, return max size.
-    return 4;
+    l = l & 0b111; // 1. Masking 'l' ensures its value is now between 0 and 7 (0b000 to 0b111).
+                   //    This effectively isolates the length code from other bits like RTR.
+
+    if (l <= 2) { // 2. Handle cases where the length code is 0, 1, or 2.
+        return l; // For l=0, returns 0. For l=1, returns 1. For l=2, returns 2.
+    }
+
+    // 3. If execution reaches here, 'l' MUST be in the range 3 to 7 (inclusive),
+    //    because l=0, 1, 2 were handled by the previous 'if'.
+    //    And 'l' cannot be greater than 7 due to the initial mask.
+
+    return 1 << (l - 1); // 4. For l in [3, 7], calculate 2^(l-1).
 }
 
 /// @brief Convert data length code to message id length in bytes, this don't
 /// count the data bytes.
-/// @param l Length code, only the 3 lower bit are used.
-/// @return Length in bytes, shift left 3 to get bits. So far should always be 4
-/// or less.
-byte
-SlowHomeNet::getMessageLen(byte l)
+/// @param l Length code, only the 3 lower bit are used. values of [0-7 inclusive]
+/// @return Length in bytes. For data length up to 4 bytes message length is 1 else returns 2.
+byte SlowHomeNet::getMessageLen(byte l)
 {
-    l >>= 3;
-    l = l bitand 0b111; // the length code can also have the RTR in the high bit.
-    if (l <= 0) return 1;
-    if (l <= 1) return 2;
-    if (l <= 2) return 4;
-    // if (l <= 3) return 8;
-
-    // error undefined for code greater than 3, return max size.
-    return 4;
+    // l >>= 3;
+    l = l bitand 0b100; // the length code can also have the RTR in the high bit.
+    if (l > 0b11) return 2;
+    return 1;
 }
 
 /// @brief Convert data length code to message id + data, length in bytes.
 /// @param l Length code, only the 3 lower bit are used.
 /// @return Length in bytes.
-byte
-SlowHomeNet::getMessageDataLen(byte l)
-{
-    return (getMessageLen(l) + getDataLen(l));
-}
+byte SlowHomeNet::getMessageDataLen(byte l) { return (getMessageLen(l) + getDataLen(l)); }
 
 /// @brief Get the message plus data length code
 /// @param mLen The message length
 /// @param dLen The data length;
 /// @return The length code. If no code to fit params then return Max length.
-byte
-SlowHomeNet::getLenCode(byte mLen, byte dLen)
+byte SlowHomeNet::getLenCode(byte mLen, byte dLen)
 {
     byte dLenPart, mLenPart;
-    if (dLen > maxDataSize) dLen = maxDataSize;
-    if (mLen > maxMessageSize) mLen = maxMessageSize;
+    if (dLen > MaxDataSize) dLen = MaxDataSize;
+    if (mLen > MaxMessageSize) mLen = MaxMessageSize;
 
     if (dLen <= 2) dLenPart = dLen;
     else if (dLen <= 4) dLenPart = 3;
@@ -1125,8 +1082,7 @@ SlowHomeNet::getLenCode(byte mLen, byte dLen)
 /// @param mLen Used to return the Message length in bytes
 /// @param dLen Used to return the data length in bytes
 /// @return 0 for no problems else the error code.
-byte
-SlowHomeNet::getFromBuf(byte a[], byte& RTR, byte& mLen, byte& dLen)
+byte SlowHomeNet::getFromBuf(byte a[], byte& RTR, byte& mLen, byte& dLen)
 {
     byte lc, i, p;
     if (recCount() < 1) return Error_NoMessageStoredToRetrieve;
@@ -1160,8 +1116,7 @@ SlowHomeNet::getFromBuf(byte a[], byte& RTR, byte& mLen, byte& dLen)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++ Reed/receive/ watch
 // line/pin +++++++++++++++++++++++++++++++++
 
-byte
-SlowHomeNet::readBit()
+byte SlowHomeNet::readBit()
 {
     byte cStart = 0; // count of high pulse at start of bit pulse
     byte cMid = 0;   // count of high pulse in middle of bit pulse
@@ -1250,8 +1205,7 @@ SlowHomeNet::readBit()
  * @return byte The value read i.e. if bit read were 1,0,1,1 that would be
  * 0b1011= 11.
  */
-byte
-SlowHomeNet::readBits(byte bits)
+byte SlowHomeNet::readBits(byte bits)
 {
     byte bit, bitCount, out;
     if (bits > 8) bits = 8;
@@ -1369,8 +1323,7 @@ SlowHomeNet::readBits(byte bits)
 /// things between receiving messages like writing text out.
 /// @return 0 for success or else an error code.
 /// @todo Maybe have timeout and check for partway through a message.
-byte
-SlowHomeNet::checkSOF()
+byte SlowHomeNet::checkSOF()
 {
     byte r;
     // Check for line going low. This is expecting the pull low for the start of
@@ -1402,8 +1355,7 @@ SlowHomeNet::checkSOF()
  *
  * @return byte Returns 0 for success, Message is stored in the buffer.
  */
-byte
-SlowHomeNet::receiveMonitor()
+byte SlowHomeNet::receiveMonitor()
 { // should I add a timeout?
     byte i, t;
 
@@ -1482,7 +1434,7 @@ SlowHomeNet::receiveMonitor()
  *
  * @note 1. Expects exc() to be called often enough for vars to be reset if the
  * message stoped part way through
- * @note 2. Should we change frame to add a pull low before end of frame 7 bits high? So we know when the EOF starts. 
+ * @note 2. Should we change frame to add a pull low before end of frame 7 bits high? So we know when the EOF starts.
  * As using Pin change Interrupts we can't use the EOF to know when the message ends as EOF and after will just stay high until next message.
  * @note 3. Starting to wonder if we should set up a timer in this pin change ISR.
  * @note 4. as the EOF and 3 bit spacing between frames are all high and the unused line will also be high this will not handle anything after the Ack bits
@@ -1501,8 +1453,7 @@ SlowHomeNet::receiveMonitor()
  * @todo add code for bit before EOF leadout
  * @todo would it be better to store just store bits and set line in use var. We could also start new message if pulse length >= 7 bits
  */
-void
-SlowHomeNet::IntCallback()
+void SlowHomeNet::IntCallback()
 { // expects 11 bit: 8 data 1 ack, 1 parity & 1
 // low bit at start.
 #ifndef noMcu_buildflag
@@ -1590,7 +1541,7 @@ SlowHomeNet::IntCallback()
         }
     }
     bitsStore <<= bitsSentNew; // make room for new bits
-                              // if new bits are high set them to 1s
+                               // if new bits are high set them to 1s
     bitPos += bitsSentNew;
 
     if (bitsStore + bitPos >= 8) { // If we have 8 bits store them in the buffer.
@@ -1655,8 +1606,7 @@ static const uint8_t PROGMEM dscrc2x16_table[] = { 0x00, 0x5E, 0xBC, 0xE2, 0x61,
 
 // Compute a Dallas Semiconductor 8 bit CRC. These show up in the ROM
 // and the registers.  (Use tiny 2x16 entry CRC table)
-uint8_t
-OneWireCrc8(const uint8_t* addr, uint8_t len, uint8_t crc = 0)
+uint8_t OneWireCrc8(const uint8_t* addr, uint8_t len, uint8_t crc = 0)
 {
     // uint8_t crc = 0;
 
@@ -1682,12 +1632,17 @@ OneWireCrc8(const uint8_t* addr, uint8_t len, uint8_t crc = 0)
  * the result of the XOR operation between the upper 4 bits and the lower 4
  * bits of the CRC value calculated by the `OneWireCrc8` function.
  */
-byte
-SlowHomeNet::Crc4(uint8_t* addr, uint8_t len)
+byte SlowHomeNet::Crc4(uint8_t* addr, uint8_t len)
 {
     byte crc;
     crc = OneWireCrc8(addr, len);
     return (((crc >> 4) xor crc) bitand 0b1111);
+}
+
+byte SlowHomeNet::CRC8bits(uint8_t crc)
+{
+    crc = pgm_read_byte(dscrc2x16_table + (crc & 0x0f)) ^ pgm_read_byte(dscrc2x16_table + 16 + ((crc >> 4) & 0x0f));
+    return crc;
 }
 
 /// @brief works out the CRC from the frame stored in the buffer, handles
@@ -1695,8 +1650,7 @@ SlowHomeNet::Crc4(uint8_t* addr, uint8_t len)
 /// @param i Index into the array the circular buffer is stored in where the
 /// first byte of the frame is stored. i.e. the data length and options.
 /// @return the CRC.
-byte
-SlowHomeNet::Crc4buf(uint8_t i)
+byte SlowHomeNet::Crc4buf(uint8_t i)
 {
     byte crc, l;
     l = buf.getBufArrayElement(i) bitand 0b11;

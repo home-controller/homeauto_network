@@ -5,7 +5,7 @@
     - [The message frame](#the-message-frame)
       - [Also note:](#also-note)
     - [Interframe Space](#interframe-space)
-      - [By default the minimum bit length is](#by-default-the-minimum-bit-length-is)
+      - [By default the minimum length in bits is](#by-default-the-minimum-length-in-bits-is)
     - [Maximum consecutive bits of the same value](#maximum-consecutive-bits-of-the-same-value)
       - [Fields that have bit stuffing:](#fields-that-have-bit-stuffing)
     - [CRC Error checking](#crc-error-checking)
@@ -38,11 +38,11 @@
 * bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started.
 * bits[1] RTR (Remote Transmission Request).
     - RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
-    - We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would not longer work.
+    - We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would no longer work.
 * bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
 * bits[8] command id.
 * bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
-* bits[4] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. we are using 4 bits for now, probably should change to 8 bits
+* bits[8] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. Changed to 8 bits from 4
 * bits[1]: CRC delimiter. Delimiter is high. Maybe should be inverse of preceding bit?
 * bits[1] Ack bit. Like CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
 * bits[1] Ack delimiter bit (this high to?)
@@ -74,31 +74,32 @@ The interframe space is composed of at least three recessive bits, called the �
 nodes time for internal processing before the start of the next message frame. After the intermission, the
 bus line remains in the recessive state (Bus Idle) until the next transmission starts.
 
-#### By default the minimum bit length is
+#### By default the minimum length in bits is
 
-1. No.bits for start of frame: 2
-2. for RTR (Remote Transmission Request): 1
-3. for length: 3
-4. for message id: 8
-5. data: 0
-6. [4+1] for CRC: 5
-7. [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error
-8. 1+2 Ack (message handled)
-9. 7 end of frame.
+* 2: bits for start of frame
+- 1: bit for RTR (Remote Transmission Request)
+- 3: for length: 3
+- 8: for message id: 8
+- 0: data: 0
+- 5: bits [8+1] for CRC
+- 2: bits [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error
+- 2: bits 1+1 Ack (message handled)
+- 1: bit for a pull low bit before EOF
+- 7: bits for end of frame.
+- 3: for Interframe Space.
+  
+So 38 bits in total and this is not counting any bit stuffing
 
-TODO Check the math below as I think it has not been updated since changes in frame
-so:
-2+3+8+(4+1)+(1+1)+(1+2)+7 = 30 but if there are 5 bits of the same value in a row
-more will be added.(if you don't care about the EOF and maybe ack would be
-18-20bits)
+2+1+3+8+(8+1)+(1+1)+(1+1)+1+7+3 = 38 but if there are 5 bits of the same value in a row
+more will be added.(if you don't care about the EOF and maybe ack would be 23 bits)
 
-for max bit we have the above + any data bits
-so:  20 + 32 = 52, or 45 not counting the 7 at end. Can't be bothered to work out
-how many of these can be high in a row but 52/5 gives 10 more bits also some
+For max bit we have the above + any data bits
+so:  38 + 32 = 70, or 45 not counting the 7 at end. Can't be bothered to work out
+how many of these can be high in a row but 45/5 gives 9 more bits also some
 data length codes may increase the id or date length even more.
 
-So minimum number of bits for a message is 20 with no date and not waiting
-for end of frame.
+So minimum time used on the line for one message is 38/488 ≈ 0.077 seconds.
+For 32 bits of data could use up to 70+8 pulses or 78/488 ≈ 0.16 seconds.
 
 Maybe we could use 6 bits pulled low to interrupt long low priority messages! As long as error handling is handled nicely it shouldn't even need extra code :D and we should hopefully know the message length at this point.
 
@@ -108,7 +109,7 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 * [x] Added low bit before EOF to bring this back to 7 max 
      * TODO  If the Ack bits are high the last 4+7=11 bits will be high as no bit stuffing in the EOF 7 bits.
 * [x] Decided to remove bit stuffing in the Ack. 
-    * Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low. Even if this is not a problem at the default low of speed we might want the code to be capable of increasing the bitrate? I think it should probably be in the CRC but not the Ack.
+    * Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low. Even if this is not a problem at the default low speed we might want the code to be capable of increasing the bitrate? I think it should probably be in the CRC but not the Ack.
 
 #### Fields that have bit stuffing:
   * SOF is 01 by default, but if the length is increase for 5 or more leading 0(dominant) bits? @todo not sure if the leading 0s have bit stuffing or if they should have, I will worry about that if I ever need more than 4 leading zeros.
@@ -125,6 +126,8 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 ### CRC Error checking
 
 - Not sure how good the CRC is when cut down form 8 bits to 4, should it go back to 8?
+- Decided to change to 8 bit CRC
+- CRC is computed on command and data bytes
 
 ### Timings and Transmission speed
 

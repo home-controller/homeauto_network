@@ -1,10 +1,11 @@
-#include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/io.h>
+#include <hn.h>
 
 #define BUFFER_SIZE 128
-#define MIN_PULSE_WIDTH 200  // Adjust this value as needed for debounce
-#define DATA_PIN 0
-#define DEBOUNCE_TIME 1000   // Debounce time in microseconds. A pulse/bit is 2048 microseconds
+#define MIN_PULSE_WIDTH 200 // Adjust this value as needed for debounce
+#define DATA_PIN 6
+#define DEBOUNCE_TIME 1000 // Debounce time in microseconds. A pulse/bit is 2048 microseconds
 
 /**
  * @class TimerDecoder
@@ -36,42 +37,46 @@
  * Thread Safety:
  * - The class uses volatile qualifiers for variables shared between interrupt and main contexts.
  *
- * @author Joseph
+ * @author Joseph + a lot of chatGPT
  * @date 1 July 2025
  */
-class TimerDecoder {
-public:
-    TimerDecoder() : decoding_enabled(0), last_timestamp(0), last_stable_state(0), last_debounce_time(0) {
+class TimerDecoder
+{
+  public:
+    TimerDecoder()
+      : decoding_enabled(0)
+      , last_timestamp(0)
+      , last_stable_state(0)
+      , last_debounce_time(0)
+    {
         event_buffer.head = 0;
         event_buffer.tail = 0;
     }
 
-    void begin() {
+    void begin()
+    {
         // Configure Timer1
-        TCCR1B |= (1 << CS11);     // Start Timer1 with prescaler 8 (2 MHz clock)
-        OCR1A = 65535;             // Set OCR1A to 65535 for ~30.52 Hz interrupt frequency
-        TIMSK1 |= (1 << OCIE1A);   // Enable Timer1 compare match interrupt
+        TCCR1B |= (1 << CS11);   // Start Timer1 with prescaler 8 (2 MHz clock)
+        OCR1A = 65535;           // Set OCR1A to 65535 for ~30.52 Hz interrupt frequency
+        TIMSK1 |= (1 << OCIE1A); // Enable Timer1 compare match interrupt
 
         // Configure Pin Change Interrupt for DATA_PIN
         PCICR |= (1 << PCIE0);     // Enable pin change interrupts for PCINT0-7
         PCMSK0 |= (1 << DATA_PIN); // Enable pin change interrupt on DATA_PIN
 
-        sei();                     // Enable global interrupts
+        sei(); // Enable global interrupts
+        startedReceiving = false;
     }
 
-    void enableDecoding() {
-        decoding_enabled = 1;
-    }
+    void enableDecoding() { decoding_enabled = 1; }
 
-    void disableDecoding() {
-        decoding_enabled = 0;
-    }
+    void disableDecoding() { decoding_enabled = 0; }
 
     /**
      * @brief Handles the change in the state of a pin with debounce logic.
      *
      * This function is called whenever there is a change in the state of the specified pin.
-     * 
+     *
      * @details
      * It implements debounce logic to ensure that only stable state changes are recorded.
      * The function calculates the time difference between the current and last state change,
@@ -88,33 +93,35 @@ public:
      * resets the debounce timer. If the state remains stable for the debounce time, it records
      * the state change and the time difference in the event buffer, ensuring that the buffer
      * does not overflow.
-     * 
+     *
      * @note 1. This function assumes that the global variables and constants such as `TCNT1`,
      * `PINB`, `DATA_PIN`, `DEBOUNCE_TIME`, `MIN_PULSE_WIDTH`, and `BUFFER_SIZE` are defined
      * elsewhere in the code.
      *
      * @note 2. Rough Estimate of Instruction Count, approximate range of 10-20 instructions (this is a Copilot estimate).
-     * 
+     *
      * 3. Estimated Execution Time: The `handlePinChange()` function is estimated to execute
      * in approximately 0.9375 to 1.875 microseconds on an Arduino Uno running at 16 MHz. This
-     * is a rough estimate and the actual execution time may vary based on the specific 
+     * is a rough estimate and the actual execution time may vary based on the specific
      * implementation and compiler optimizations.
      */
-    void handlePinChange() {
+    void handlePinChange()
+    {
         uint16_t current_timestamp = TCNT1;
         uint16_t delta = current_timestamp - last_timestamp; // Calculate time difference
 
         uint8_t current_state = (PINB & (1 << DATA_PIN)) ? 1 : 0; // Read DATA_PIN state
 
-        if (current_state != last_stable_state) { // State has changed
+        if (current_state != last_stable_state) {   // State has changed
             last_debounce_time = current_timestamp; // Reset debounce timer
         }
 
         if ((current_timestamp - last_debounce_time) >= DEBOUNCE_TIME) { // Stable for debounce time
-            if (current_state != last_stable_state) { // State has changed
-                last_stable_state = current_state; // Update stable state
+            if (current_state != last_stable_state) {                    // State has changed
+                last_stable_state = current_state;                       // Update stable state
 
                 if (delta >= MIN_PULSE_WIDTH) { // Debounce: Ignore quick changes
+                    startedReceiving = true;
                     uint8_t next_head = (event_buffer.head + 1) % BUFFER_SIZE;
                     if (next_head != event_buffer.tail) { // Check for buffer overflow
                         event_buffer.time_delta[event_buffer.head] = delta;
@@ -127,7 +134,20 @@ public:
         }
     }
 
-    void handleTimerInterrupt() {
+    void handleTimerInterrupt()
+    {
+        if (startedReceiving) {
+            uint16_t current_timestamp = TCNT1;
+            uint16_t delta = current_timestamp - last_timestamp; // Calculate time difference
+            if (delta >= PulseLength*MaxInUseHighBits) {
+                startedReceiving = false;
+                // Maybe mark the message as received or set a error flag
+                // depending if the message was valid or stopped part way through or if the line is held low etc.
+
+                // Check if message received and was just wait for the end of frame plus Interframe Space
+                // This needs the timer as the pin will just stay high and not change
+            }
+        }
         if (!decoding_enabled) return; // Skip decoding if disabled
 
         while (event_buffer.tail != event_buffer.head) {
@@ -151,8 +171,9 @@ public:
         }
     }
 
-private:
-    struct {
+  private:
+    struct
+    {
         uint16_t time_delta[BUFFER_SIZE];
         uint8_t state[BUFFER_SIZE];
         uint8_t head;
@@ -163,19 +184,18 @@ private:
     volatile uint16_t last_timestamp;
     volatile uint8_t last_stable_state;
     volatile uint16_t last_debounce_time;
+    volatile bool startedReceiving;
 };
 
 TimerDecoder timerDecoder;
 
-ISR(TIMER1_COMPA_vect) {
-    timerDecoder.handleTimerInterrupt();
-}
+ISR(TIMER1_COMPA_vect) { timerDecoder.handleTimerInterrupt(); }
 
-ISR(PCINT0_vect) {
-    timerDecoder.handlePinChange();
-}
+ISR(PCINT0_vect) { timerDecoder.handlePinChange(); }
 
-int main(void) {
+int
+main(void)
+{
     timerDecoder.begin();
 
     while (1) {

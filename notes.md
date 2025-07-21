@@ -4,7 +4,7 @@
 
 - [ ] Add dominant ack bit before EOF to the sending and receiving code.
 - [ ] get pin change ISR working
-- [ ] Check sending function to se if brocken
+- [ ] Check sending function to see if brocken
 - [ ] Check blocking receive to see if still working, Blocking receive is probably all a switch unit needs, but I guess for the same reason the ISR wold work fine to
 - Would using a timer to check the line level work better than pin change interrupt?
 - For now I think I may just ignore everything after the CRC until we get the next message.

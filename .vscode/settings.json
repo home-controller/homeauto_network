@@ -1,6 +1,7 @@
 {
     "cmake.configureOnOpen": false,
     "cSpell.words": [
+        "dscrc",
         "ricaun",
         "STRINGIZE",
         "SWITCHCAPVCC",

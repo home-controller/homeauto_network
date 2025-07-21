@@ -4,6 +4,9 @@ EmptyLineBeforeAccessModifier: LogicalBlock
 IncludeBlocks: Merge
 ReflowComments: true
 ColumnLimit: 155
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+PenaltyReturnTypeOnItsOwnLine: 1000000
 AllowShortBlocksOnASingleLine: Always
 AllowShortFunctionsOnASingleLine: All
 TabWidth: 4

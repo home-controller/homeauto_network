@@ -4,7 +4,7 @@
  * @brief A communication protocol for a slow home network, including
  * functions for sending and receiving data packets, calculating CRC checksums,
  * and handling line contention.
- * @version 0.1.2
+ * @version 0.1.3
  * @date 2025-01-24
  *
  * @copyright Copyright (c) 2025
@@ -35,17 +35,19 @@ typedef uint8_t boolean;
 #endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
 
-#define MaxInUseHighBits 9
 
 // #define CRCError
 #define SOFBits 2 /// @brief The number of SOF (Start of Frame) bits.
-#define FrameInfoBits 4
+#define FrameInfoBits 4 /// RTR (Remote Transmission Request) bit + 3 bits for the data length
 #define CRCBits 5 // 4 CRC bits + 1 Delimiter
 #define AckBits 5
 #define EOFBits 7
+#define InterframeSpaceBits 3 // 3 bits of spacing between frames, this is not counted in the total frame bits.
 #define TotalFrameBits (SOFBits + FrameInfoBits + CRCBits + AckBits + EOFBits) // = 2+4+5+4+7 = 22 Total frame bits not counting and message or data bits.
 #define BeforeMessageBits (SOFBits + FrameInfoBits)
 #define BeforeEOFBits (FrameInfoBits + CRCBits + AckBits) /// @brief This is not counting any SOF bits
+
+#define MaxInUseHighBits 9
 
 #if SOFBits > 1
 #define SOFValue 0b01 // if the number of bit is greater than 1 pull low for (SOFBits - 1) bits then 1 hight bit.
@@ -53,8 +55,8 @@ typedef uint8_t boolean;
 #define SOFValue 0 // else pull low for 1 bit.
 #endif
 ///
-#define maxDataSize 8        // the maximum data frame size in bytes, the is separate for the message frame. Can only be 0,1,2,4,8,16,32 byte
-#define maxMessageSize 1     // The maximum massage size in bytes.
+#define MaxDataSize 8        // the maximum data frame size in bytes, the is separate for the message frame. Can only be 0,1,2,4,8,16,32 byte
+#define MaxMessageSize 1     // The maximum massage size in bytes.
 #define _pinReg PIND         // read PIND for pins D0 to D7 states
 #define _pinMask 0b00000100; // Mask for third pin in reg. i.e. on PIND mask for D2
 #define _hn_int_pin 2
@@ -72,13 +74,23 @@ typedef uint8_t boolean;
 // That would give a max high time of: 52 / BitsPerSecond = 52/488 ≅ 0.1 seconds = 100 miliseconds
 // 7 bits would be 7/488 ≅ 14 miliseconds
 #define LineCheckTimeout 500 // 1/2 second. This is just waiting for a message to end so if 1/2 a seconds passes there is must be a problem somewhere.
-#define WaitForLineTimeout (SOFBits + maxMessageSize + maxDataSize) // This needs to wait for the message to be sent not just the line level to change.
+#define WaitForLineTimeout (SOFBits + MaxMessageSize + MaxDataSize) // This needs to wait for the message to be sent not just the line level to change.
 
 #define LineUnmonitored 0 // there is no ISR etc. keeping track of the line state
 #define LineFree 1        // The ISR or function keeping track of incoming messages has marked the line as free.
 #define LineInuse 2       // the line is in use. You may need to call exc(); etc. for this to be up to date.
 #define LineMinGap 3      // Make sure there is a gap of at least lineMinGapMs (class var)
-#define LineError 4       // There is a line error, when/if implemented this could be a line error code being sent.
+#define LineSOF 4        // The line is in a SOF state, i.e. the start of a message frame is being sent.
+#define LineRTC 5        // The line is in a RTC state, i.e. the Remote Transmission Request bit is being sent.
+#define LineDataLength 6 // The line is in a Data Length state, i.e. the data length bits are being sent.
+#define LineMessageId 7  // The line is in a Message ID state, i.e. the message ID bits are being sent.
+#define LineData 8       // The line is in a Data state, i.e. the data bits are being sent.
+#define LineCRC 9       // The line is in a CRC state, i.e. the CRC bits are being sent.
+#define LineAckReceived 10      // The line is in an Ack state(pull low if crc errors), i.e. the Ack bits are being sent.
+#define LineAckHandled 11      // The line is in an Ack Handled state, i.e. Pulled low by any unit that will handle the message.
+#define LineEOF 12      // The line is in an EOF state, i.e. the End of Frame bits are being sent.
+
+#define LineError 64    // The line is in an error state, i.e. the line has been low for too long or the message frame was not received correctly.
 // When using a function to check the line each time through the main loop you will likely need this delay. I needed about 100ms for the test in main.c
 
 #define Error_NoError 0        //  0,  Successfully sent and received Ack.
@@ -137,13 +149,14 @@ class SlowHomeNet
 
     //+++++++++++++++++++++++++ Misc ++++++++++++++++++++++++++++++++++++
 
-    byte getDataLen(byte l);
-    byte getMessageLen(byte l);
-    byte getMessageDataLen(byte l);
-    byte getLenCode(byte mLen, byte dLen);
+    static inline byte getDataLen(byte l);
+    static inline byte getMessageLen(byte l);
+    static inline byte getMessageDataLen(byte l);
+    static inline byte getLenCode(byte mLen, byte dLen);
 
-    byte Crc4(uint8_t* addr, uint8_t len);
-    byte Crc4buf(uint8_t i);
+    static inline byte Crc4(uint8_t* addr, uint8_t len);
+    static inline byte CRC8bits(byte crc);
+    inline byte Crc4buf(uint8_t i);
 
     /// @brief Get the value in the queue i items back front the head of the queue. No range checking.
     /// @param i if i = 0 then the first item at the head of the queue, else i bytes back from the head
@@ -173,7 +186,7 @@ class SlowHomeNet
     volatile uint8_t* pin_DDR_reg; // = portModeRegister(port);
     volatile uint8_t* port_IO_reg; // volatile uint8_t *out = portOutputRegister(port);
     byte networkPin;
-    word bitPulseLength = 2048; //  1 bit takes 2048 microseconds (~= 1e6 / lineSpeed;) (microsecond = 1 millionth of a second).
+    word bitPulseLength = PulseLength; //2048; //  1 bit takes 2048 microseconds (~= 1e6 / lineSpeed;) (microsecond = 1 millionth of a second).
 
     word lineSpeed = 1e6 / bitPulseLength; // giving a line speed of 488 bits per second.
                                            // Changed from 600 to 488 as this allows shifting right 11 to divide by 2048.
@@ -211,7 +224,11 @@ class SlowHomeNet
       maxInuseHigh + bitPulseLength / 1000; // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
     // byte size_of = sizeof(maxInuseLow);
     // word WaitForLineTimeout = 400;  // 4/10th of a second in millisecond (1e-3). different from more accurate timings that are in microseconds (1e-6)
-    byte lineState = 0; // Line in use etc. see #defines above.
+    
+    /// Line in use etc. see "#defines LineFree" etc. above.
+    /// @note the "lineState" var is also used in the ISR
+    byte lineState = LineUnmonitored; 
+    
 
     //===========================================ISR vars=======================================
     // moved here from having as static in func as I think(?) that would limit to 1 pin.
@@ -232,7 +249,7 @@ class SlowHomeNet
     boolean expectStuffedBit =
       false; /// @brief After 5 bits in a row of the same level and if we are in the right part of the frame this is set to true so the next bit is removed
     byte messageLen = 0;
-    // Note the "lineState" var is also used in the ISR
+    
 
     byte bitPos, overflowCount; /// relay not sure about some of the vars as it maybe the same uses as above
     /// @todo I think the whole ISR function is probably far from working and needs rewriting
@@ -256,7 +273,7 @@ class SlowHomeNet
     byte bitCountUnchanged = 0;  /// The the number of bits of the same level sent. (Used to insert the opset bit if gets to 5.)
     boolean lastBitLevel = HIGH; /// the line level of the last bit sent or received
     byte
-      dataArray[maxMessageSize + maxDataSize]; // beside using this to send different size messages and data, the CRC function wants it all in one array.
+      dataArray[MaxMessageSize + MaxDataSize]; // beside using this to send different size messages and data, the CRC function wants it all in one array.
     byte RTRLenCode;                           // The RTR in the high bit plus the length code. Class var.
     byte mHandled;                             // This message was handled by a different unit.
     word lineMinGapMs = 100;                   // wait needed between sending 2 messages when checking in main loop
