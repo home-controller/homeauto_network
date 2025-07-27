@@ -1639,9 +1639,31 @@ byte SlowHomeNet::Crc4(uint8_t* addr, uint8_t len)
     return (((crc >> 4) xor crc) bitand 0b1111);
 }
 
-byte SlowHomeNet::CRC8bits(uint8_t crc)
+/**
+ * @brief Calculates an 8-bit CRC value using a lookup table.
+ *
+ * This function computes the running CRC (Cyclic Redundancy Check) value based on the current and previous CRC values.
+ * It uses a lookup table (dscrc2x16_table) stored in program memory to perform the calculation efficiently.
+ *
+ * @param crc The current CRC value.
+ * @param prev_crc The previous CRC value.
+ * @return The updated 8-bit CRC value.
+ *
+ * @note On an Arduino Uno (ATmega328P, 16 MHz), this function will typically take:
+ * @note 1. - 1 cycle for the initial XOR operation (crc ^ prev_crc)
+ * @note 2. - 2 × (4 cycles for pgm_read_byte) = 8 cycles (reading from PROGMEM)
+ * @note 3. - 1 cycle for each additional XOR
+ * @note 4. - Plus function call overhead (~4 cycles) and register moves
+ * @note - Total: ~15–20 clock cycles (approximate, not including possible compiler optimizations)
+ * @note - Actual timing may vary slightly depending on compiler and optimization level.
+ *
+ */
+byte SlowHomeNet::CRC8bits(uint8_t crc, uint8_t prev_crc)
 {
-    crc = pgm_read_byte(dscrc2x16_table + (crc & 0x0f)) ^ pgm_read_byte(dscrc2x16_table + 16 + ((crc >> 4) & 0x0f));
+    // calculate the running CRC and return it.
+    // crc is the current CRC, prev_crc is the previous CRC.
+    crc = crc ^ prev_crc;
+    crc = pgm_read_byte(dscrc2x16_table + (crc & 0x0f)) xor pgm_read_byte(dscrc2x16_table + 16 + ((crc >> 4) & 0x0f));
     return crc;
 }
 

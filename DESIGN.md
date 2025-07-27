@@ -8,6 +8,7 @@
       - [By default the minimum length in bits is](#by-default-the-minimum-length-in-bits-is)
     - [Maximum consecutive bits of the same value](#maximum-consecutive-bits-of-the-same-value)
       - [Fields that have bit stuffing:](#fields-that-have-bit-stuffing)
+      - [Fields that do not have bit stuffing:](#fields-that-do-not-have-bit-stuffing)
     - [CRC Error checking](#crc-error-checking)
     - [Timings and Transmission speed](#timings-and-transmission-speed)
     - [Minimal needed to work for controlling lights with switches and temp](#minimal-needed-to-work-for-controlling-lights-with-switches-and-temp)
@@ -35,7 +36,7 @@
 |01|?|1??|????????|????????????????|????|1|?|1|?|10|1111111|111| the bits value.
 ```
 
-* bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started.
+* bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started. A controller could also use Pulling the line LOW and then Sending the last HIGH bit to take control of the network.
 * bits[1] RTR (Remote Transmission Request).
     - RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
     - We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would no longer work.
@@ -48,7 +49,7 @@
 * bits[1] Ack delimiter bit (this high to?)
 * bits[1] Ack bit. This is pulled low by any unit that can handle the message i.e. if the message was light switch turned on then this unit will turn on the light.
 * bits[1] Ack delimiter bit, need this so the replying unit has some timing leeway
-* bits[1] Extra dominant(pulled low) delimiter bit. Needed to use pin change ISR as without this all CRC + Ack bits could be high, therefore there could be no pin change after the message is sent.Also a lot of bit in a row could be high, As the other delimiter bits should be high it should now have pin changes
+* bits[1] Extra dominant(pulled low) delimiter bit. Needed to use pin change ISR as without this all CRC + Ack bits could be high, therefore there could be no pin change after the message is sent.Also a lot of bit in a row could be high, As the other delimiter bits snd the EOF should be high there should always be pin changes after the message, although should wait for the rest of the frame before sending anymore messages. 
 * bits[7] EOF 7 bit end of fame.
 * bits[3] Interframe Space. Most(all??) CAN controllers seem to add a delay of 3 bits between sending frames to give the controllers time for housekeeping etc.
 
@@ -109,16 +110,37 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 * [x] Added low bit before EOF to bring this back to 7 max 
      * TODO  If the Ack bits are high the last 4+7=11 bits will be high as no bit stuffing in the EOF 7 bits.
 * [x] Decided to remove bit stuffing in the Ack. 
-    * Should there even be bit stuffing in the Ack and maybe CRC? ** __*The reason for the delimiter for the Ack bits is to allow for timing mismatch*?__ when a different unit pulls the Ack low. Even if this is not a problem at the default low speed we might want the code to be capable of increasing the bitrate? I think it should probably be in the CRC but not the Ack.
+    * The sender will not know the final receiving value of the Ack bits as other units overwrite them to acknowledge the message or signal it didn't receive it correctly.
+    * Left bit stuffing in CRC as it is now 8 bits long and no reson we can't
 
 #### Fields that have bit stuffing:
-  * SOF is 01 by default, but if the length is increase for 5 or more leading 0(dominant) bits? @todo not sure if the leading 0s have bit stuffing or if they should have, I will worry about that if I ever need more than 4 leading zeros.
-  * Last high bit of SOF(1) + RTR(1) + length field(3) =5 bits, so no bits stuffed in here but could count towards bit stuffing in the following fields
+  * Last bit of SOF
+  * RTR 
+  * Length code
   * command
   * Data
   * CRC
+> [!CAUTION]
+   **SOF** is 01 by default. Even if the length is increase to more than 5 leading 0(dominant) bits, still no bit stuffing on the leading low bits as the whole point of adding the longer SOF is so other units can still pick up the message late if they are busy. If they start checking when the SOF is already part sent it simplifies things if the first high bit is always the last bit of the SOF.
+  
+ > [!TIP]
+ Last high bit of SOF(1) + RTR(1) + length field(3) =5 bits, so no bits stuffed in here but could count towards bit stuffing in the following fields
 
-- @note CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
+
+#### Fields that do not have bit stuffing:
+* all the leading low bits of a multi bit SOF(all but the last 1 bit) [The leading Low bits can vary in length]
+* CRC Delimiter
+* ACK Field (ACK slot and ACK delimiter)
+* second ACK Field (ACK slot and ACK delimiter)
+* Low delimiter before EOF
+* EOF (7 bits)
+* Interframe Space (2 bits)
+
+> [!IMPORTANT]
+> any leading LOW bits of a longer than 1 bit *SOF* do not have bit stuffing as the point of longer SOF is so receiving units have more time to check if a message is about to be sent and so will not know how meany bits are already sent.
+
+> [!NOTE]
+> CAN has a Max consecutive bits of the same level of 5 bits and anything more is used to set an error. So if one unit gets a CRC error it can pull the line low for 6 bits to cancel the send and set an error thus keeping all units in sync.
 
 - [x] Bit stuffing removed from ack fields.
 - [x] Add extra dominant delimiter bit before EOF, to make pin change IRC reading work better.
@@ -128,6 +150,10 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 - Not sure how good the CRC is when cut down form 8 bits to 4, should it go back to 8?
 - Decided to change to 8 bit CRC
 - CRC is computed on command and data bytes
+
+  > [!WARNING]
+  > Some code may still not be updated from 4 to 8 bit CRC. 
+  > And now I have used all 5 different Alerts :)
 
 ### Timings and Transmission speed
 
