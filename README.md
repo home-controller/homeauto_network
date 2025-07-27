@@ -1,4 +1,3 @@
-
 # HomeAuto Network
 
 - [HomeAuto Network](#homeauto-network)
@@ -15,6 +14,7 @@
   - [Bus line hardware, protection. pull-up values etc](#bus-line-hardware-protection-pull-up-values-etc)
   - [Current test circuit](#current-test-circuit)
 
+@mainpage
 ## Still in Beta
 
 Should now work for receiving unit constantly checking the line, although any use of Serial.print or other time consuming code will likely result in missing the start of the frame and hence the message. Even if checking in a tight loop for message start this can still happen while handling a received message if a second message is sent to quick.
