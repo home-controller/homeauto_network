@@ -151,7 +151,7 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 - Decided to change to 8 bit CRC
 - CRC is computed on command and data bytes
 
-  > [!WARNING]
+> [!WARNING]
   > Some code may still not be updated from 4 to 8 bit CRC. 
   > And now I have used all 5 different Alerts :)
 
