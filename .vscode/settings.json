@@ -1,14 +1,19 @@
 {
     "cmake.configureOnOpen": false,
     "cSpell.words": [
+        "Arjen",
+        "COBJECTS",
         "COMPA",
         "dscrc",
+        "mainpage",
         "OCIE",
+        "PORTD",
         "ricaun",
         "STRINGIZE",
         "SWITCHCAPVCC",
         "vect",
-        "WDTO"
+        "WDTO",
+        "xxyyyyy"
     ],
     "C_Cpp.intelliSenseEngine": "default"
 }

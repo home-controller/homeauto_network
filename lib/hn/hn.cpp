@@ -18,6 +18,7 @@
 
 #include "hn.h"
 #include <avr/pgmspace.h>
+#include "sharedVarsConf.h"
 /*
  * slow Home Network.
  * 1: The line is pullup so to send data first pull it low.
@@ -83,16 +84,27 @@ void SlowHomeNet::exc()
 }
 
 /**
+ * @brief Called by sendBitH() below.
+ *
+ * @note Separating this should make it easier to have different line hardware implementations, maybe use #defines for different versions of the
+ *
+ */
+inline void SlowHomeNet::setLineBitH(byte pin) { pinMode(pin, INPUT_PULLUP); }
+
+/**
  * @brief Called by sendBits() below to put a High bit on the line, by
  * separating this should make it easier for different hardware
  *
  * @return boolean True for successful send, false if a higher priority message
  * pulled the line low.
+ * 
+ * @todo: use a lower level read line function the can be changed to match hardware
  */
 boolean SlowHomeNet::sendBitH()
 {
     byte y;
     pinMode(networkPin, INPUT_PULLUP);
+    setLineBitH(networkPin);
     delayMicroseconds((bitPulseLength - DigitalWriteTime) >> 2); // shift right 2 is divide by 4
     for (y = 1; y <= 3; y++) {                                   // check line level is left high at 1/4, 1/2 & 3/4 of bit pulse
         if (digitalRead(networkPin) == LOW) {
@@ -105,6 +117,18 @@ boolean SlowHomeNet::sendBitH()
 }
 
 /**
+ * @brief Called by sendBitL() below and ISR receiving func to pull the bit on the line LOW.
+ *
+ * @note Separating this should make it easier to have different line hardware implementations, maybe use #defines for different versions of the
+ *
+ */
+inline void SlowHomeNet::setLineBitL(byte pin)
+{
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, dominantLineLevel); // Set the line to LOW to indicate sending a bit
+}
+
+/**
  * @brief Called by sendBits() below to pull the bit on the line LOW. By
  * separating this should make it easier to have different line hardware
  * implementations
@@ -112,8 +136,7 @@ boolean SlowHomeNet::sendBitH()
  */
 void SlowHomeNet::sendBitL()
 {
-    pinMode(networkPin, OUTPUT);
-    digitalWrite(networkPin, LOW);
+    setLineBitL(networkPin);
     delayMicroseconds(bitPulseLength - DigitalWriteTime);
 }
 
@@ -957,8 +980,8 @@ boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level = 1)
 }
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  *
  * will be left pulled LOW.
  *
@@ -973,8 +996,7 @@ boolean SlowHomeNet::monitorLinePinForChange(byte pulses, byte level = 1)
  *
  * @return boolean true for success, false for timeout etc.
  */
-boolean
-SlowHomeNet::getNetwork()
+boolean SlowHomeNet::getNetwork()
 {
     unsigned long timeOutStart;
     timeOutStart = millis();
@@ -1001,7 +1023,7 @@ SlowHomeNet::getNetwork()
  * This mapping is typically used to interpret encoded data length fields in network protocols,
  * where the length is either a small fixed value or an exponential value for larger payloads.
  * @note The data length should probably not exceed 4 bytes(code 3) (32 bits) in most cases, as any more will hog the line for too long.
- * at a data rate of 488 bits per second, this means a duration of about 32/488 ≈ 0.065 seconds just for the data, the whole message could take 
+ * at a data rate of 488 bits per second, this means a duration of about 32/488 ≈ 0.065 seconds just for the data, the whole message could take
  * ≈ 0.15 seconds depending on bits stuffed in the message.
  *
  * @param l The encoded length value (only the lower 3 bits are considered).
@@ -1494,7 +1516,7 @@ void SlowHomeNet::IntCallback()
     /// check if t > than MaxInUseHighBits and set to start new message if true.
     if (t > (MaxInUseHighBits * bitPulseLength)) {
         if (state > 0) lineState = LineFree;
-        else lineState = LineError; // In CAN, 6 consecutive bits of the same level can indicate a error code/message, this will not be checked for.
+        else lineState = Error_LineError; // In CAN, 6 consecutive bits of the same level can indicate a error code/message, this will not be checked for.
     }
 
     //======== Set bitsSentNew to the number of bits since last level change.

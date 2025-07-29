@@ -17,7 +17,8 @@
  *
  * hn is short fot Home Network here.
  */
-
+#ifndef _hnkjh.h
+#define _hnkjh.h
 #include "sharedVarsConf.h"
 
 /// @brief A wired network using IO pins on an MCU. Slow with minimal hardware requirements.
@@ -52,6 +53,11 @@ class SlowHomeNet
     byte send(byte command);
     byte send(byte command, byte data);
     byte sendW(byte command, word data);
+
+    // low level send functions, can't be private as used by the ISR.
+
+    static inline void setLineBitL(byte pin);
+    static inline void setLineBitH(byte pin);
 
     //+++++++++++++++++++++++++ Misc ++++++++++++++++++++++++++++++++++++
 
@@ -130,9 +136,11 @@ class SlowHomeNet
       maxInuseHigh + bitPulseLength / 1000; // Max bits pulled low is 10. Pull low 1 tic to show start then could be 9 lows for data then high for parity.
     // byte size_of = sizeof(maxInuseLow);
     // word WaitForLineTimeout = 400;  // 4/10th of a second in millisecond (1e-3). different from more accurate timings that are in microseconds (1e-6)
-    
+
     /// Line in use etc. see "#defines LineFree" etc. above.
     /// @note the "lineState" var is also used in the ISR
+    /// @todo inTimer1.cpp uses a different var in the SharedData struct, it should be updated so it sets this as well.
+    /// @todo Maybe reads it to check if this unit is sending.
     byte lineState = LineUnmonitored; 
     
 

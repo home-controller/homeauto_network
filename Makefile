@@ -90,17 +90,24 @@ edit:
 list:
 	pio device list
 
+mainpage.md: README.md
+	bash ./src/make_mainpage.sh
+
 #Build docs, this takes a long time!
 .PHONY: build_docs
-build_docs:
+build_docs: mainpage.md
+	@echo "Building documentation..."
+	@echo "Updating Doxygen configuration..."
 	doxygen -u
+	@echo "Generating documentation..."
 	doxygen
-	./doc.sh
+	@echo "Calling firefox to show the docs..."
+	./src/doc.sh
 
 #show docs in firefox
 .PHONY: docs
 docs:
-	./doc.sh
+	./src/doc.sh
 
 
 #Add udev rules

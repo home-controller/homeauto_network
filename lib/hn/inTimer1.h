@@ -16,6 +16,7 @@ const int DEBOUNCE_THRESHOLD = 2; // Number of consecutive samples to confirm a 
 const byte SamplesToCountAsBit = 4; // Minimum number of samples to count as a valid bit (4 samples = 1/2 bit at 2048us)
 
 // --- Function Prototypes ---
-void processDecodedDuration(unsigned int num_samples, byte lineLevel);
+void processDecodedDuration(unsigned int num_samples, byte lineLevel, bool interrupts);
 void enqueueDecodedBit(char bitValue);
 void setupTimer1();
+static void resetMessageState();

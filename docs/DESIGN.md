@@ -31,9 +31,9 @@
 ### The message frame
 
 ```fixed width text
-|SF|R|lll|mmmmmmmm|ddddddd16ddddddd|CCCC|D|A|D|A|DD|eeeeeee|iii
-|01|?| 3 | 8bits  |0,8,16 or32 bits| 4  |l|1|1|1|2 |7 high | 3 | number of bits.
-|01|?|1??|????????|????????????????|????|1|?|1|?|10|1111111|111| the bits value.
+|SF|R|lll|mmmmmmmm|ddddddd16ddddddd|CCCCCCCC|D|A|D|A|DD|eeeeeee|iii
+|01|?| 3 | 8bits  |0,8,16 or32 bits|    8   |l|1|1|1|2 |7 high | 3 | number of bits.
+|01|?|1??|????????|????????????????|????????|1|?|1|?|10|1111111|111| the bits value.
 ```
 
 * bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started. A controller could also use Pulling the line LOW and then Sending the last HIGH bit to take control of the network.
@@ -43,7 +43,7 @@
 * bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
 * bits[8] command id.
 * bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
-* bits[8] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. Changed to 8 bits from 4
+* bits[8,16] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. Changed to 8 bits from 4
 * bits[1]: CRC delimiter. Delimiter is high. Maybe should be inverse of preceding bit?
 * bits[1] Ack bit. Like CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
 * bits[1] Ack delimiter bit (this high to?)
@@ -111,7 +111,7 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
      * TODO  If the Ack bits are high the last 4+7=11 bits will be high as no bit stuffing in the EOF 7 bits.
 * [x] Decided to remove bit stuffing in the Ack. 
     * The sender will not know the final receiving value of the Ack bits as other units overwrite them to acknowledge the message or signal it didn't receive it correctly.
-    * Left bit stuffing in CRC as it is now 8 bits long and no reson we can't
+    * Left bit stuffing in CRC as it is now 8 bits long and no reason we can't
 
 #### Fields that have bit stuffing:
   * Last bit of SOF

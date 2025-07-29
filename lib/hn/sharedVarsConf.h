@@ -41,6 +41,9 @@ typedef uint8_t boolean;
 ///  want to wait for it to be ready before sending a message.
 #define AllowPullLineLowForBusy false
 
+#define dominantLineLevel LOW // The line is pulled LOW by the sending unit, i.e. the dominant level on the line when sending a message.
+#define recessiveLineLevel HIGH // The line is pulled HIGH by the receiving unit, i.e. the recessive level on the line when not sending a message.
+
 // #define CRCError
 #define SOFBits 2       /// @brief The number of SOF (Start of Frame) bits.
 #define FrameInfoBits 4 /// RTR (Remote Transmission Request) bit + 3 bits for the data length
@@ -83,6 +86,13 @@ const byte maxMessageIdBits = (8 * MaxMessageSize); // Maximum message ID bits, 
 /// When using a function to check the line each time through the main loop you will likely need this delay. I needed about 100ms for the test in main.c
 #define WaitForLineTimeout (SOFBits + MaxMessageSize + MaxDataSize) // This needs to wait for the message to be sent not just the line level to change.
 
+#define LineUnmonitored 0  // there is no ISR etc. keeping track of the line state
+#define LineFree 1         // The ISR or function keeping track of incoming messages has marked the line as free.
+#define LineInuse 2        // the line is in use. You may need to call exc(); etc. for this to be up to date.
+#define LineMinGap 3       // Make sure there is a gap of at least lineMinGapMs (class var)
+// When using a function to check the line each time through the main loop you will likely need this delay. I needed about 100ms for the test in main.c
+/// @note this is kind of duplicated in inTimer1.cpp
+
 #define Error_NoError 0        //  0,  Successfully sent and received Ack.
 #define Error_LineError 1      //  1,  line error.
 #define Error_NoRoomInBuffer 3 //  3,  Not enough or no room to store the info needed in the buffer.
@@ -112,6 +122,7 @@ const byte maxMessageIdBits = (8 * MaxMessageSize); // Maximum message ID bits, 
 #define Error_MessageNotInBuffer 31
 #define Error_DataNotInBuffer 32
 #define Error_Array_to_small 33
+#define Error_Code_logic_Bug 40
 
 /// @brief Protocol-level state machine for frame processing.
 /// @details This enum represents the logical states of a frame as it is received or transmitted according to the protocol,
@@ -126,8 +137,9 @@ enum class FrameState : uint8_t
     RECEIVING_MESSAGE_ID,  // Message ID bits
     RECEIVING_DATA,
     RECEIVING_CRC,
+    RECEIVING_CRC_Delimiter,  //
     RECEIVING_ACK_CRC_PASSED, // Where you write your ACK
-    RECEIVING_ACK_CRC_FAILED,  // The line is pulled low by the unit that will handle the message.
+    RECEIVING_ACK_CRC_FAILED, // The line is pulled low by the unit that will handle the message.
     RECEIVING_ACK_DELIMITER,
     RECEIVING_ACK_HANDLED,           // The line is pulled low by the unit that will handle the message.
     RECEIVING_ACK_HANDLED_DELIMITER, // The line is pulled low by the unit that will handle the message.
@@ -137,7 +149,8 @@ enum class FrameState : uint8_t
     Line_DISABLED, // The line is disabled, i.e. it is pulled low. This can mean a line error(shorted to GND etc.) or a unit has pulled it low to signal it
                    // is not ready for a message(if only 1 controller this can be away to tell the sending units to wait).
     Line_Error,    // The line is in an error state, e.g. it is shorted to GND or VCC.
-    ERROR_FRAME_DETECTED // If you implement error detection
+    ERROR_FRAME_DETECTED, // If you implement error detection
+    ERROR_Logic_code_Bug  // If you detect a logic error or bug in the code, i.e. the code is not working as expected.
 };
 
 /// @brief Shared data structure for the HomeNet protocol.
@@ -160,11 +173,18 @@ struct SharedData
     volatile byte previous_stable_state;                       // The last lineLevel we confirmed after debouncing
     volatile unsigned int current_stable_sample_count = 0;     // Counts consecutive stable samples for the current lineLevel
     volatile unsigned int unstable_change_detection_count = 0; // Counts samples that differ from previous_stable_state
-    volatile byte current_pin_read; // The current pin read value, used to check if the line is stable or not
+    volatile byte current_pin_read;                            // The current pin read value, used to check if the line is stable or not
+
+    /// @brief Number of bits that should be read in the IDR before calling the helper function. 0
+    /// @details This will get the ISR to read this and only this number of bits before calling the helper function.
+    /// This is useful to avoid reading too many bits at once, which could cause issues with the protocol.
+    /// Used in the ack and EOF fields, Fixed length fields without having bit stuffing.
+    /// @note 0 means no limit, i.e. read all bits of the same level. (should be no more than 5 in frames with bit stuffing.)
+    /// @warning Bits read this way will not allow for timing errors between unit in the same way.
+    volatile byte maxBitRead = 0;
 
     // Frame Fields (simplified for a custom protocol)
     volatile byte RTRBit;            // Remote Transmission Request bit for the current frame
-    volatile uint8_t messageID;      // Example: 8-bit ID
     volatile uint8_t dataLengthCode; // Example: 3-bit DLC (0-7)
     volatile uint8_t dataLength;     // Actual data length in bytes (0-8)
     volatile uint8_t messageIdBits;  // Number of bits in the message ID
@@ -182,8 +202,15 @@ struct SharedData
     volatile uint8_t calculatedCRC; // The CRC calculated by this receiver (8-bit)
     volatile bool crcCheckPassed;   // Flag for CRC status
 
-    // ACK Field
-    volatile bool sendAck; // Flag for receiver to signal its ACK intention
+    // ACK Fields
+    volatile bool ackPassed; // Flag for all units receiving (with Ack handling implemented) passed the CRC check.
+    // volatile bool ackError;    // Flag to indicate if an ACK error was received
+    // This record is used for receiving only so no sending vars needed.
+    volatile bool canHandleMessage;
+    volatile byte canHandleMessageMsk;// A mask for the messageID. if mask > 0 then it is bitand with the message id before the check.
+    volatile byte canHandleMessageId;// if using a > 8 bit message ID this will only mach with ID that will fit into a byte.
+    // On MCUs with more memory this could be changed to an array.
+    /// @todo add maybe a #define for an array size option here with 16 bit IDs option to.
 
     // Flags for main loop communication
     volatile bool newFrameReceived;
@@ -192,16 +219,18 @@ struct SharedData
 
     // Var to handle bit stuffing
     // volatile byte bitsOfSameLevel; // Count of consecutive bits at the same level (for bit stuffing)
-    
+
     /// The level of the bits of the same level (HIGH or LOW) + 1 or 0 if not expected.
     /// @note Bits are stuffed in fields that have bit stuffing: 1 bit from SOF(last bit), RTR, Data Length, Message ID, Data Payload.
-    /// @warning Every field after the data field does not have bit stuffing i.e.: CRC, ACK, EOF, Interframe Space. 
+    /// @warning Every field after the data field does not have bit stuffing i.e.: CRC, ACK, EOF, Interframe Space.
     /// @warning Also only the last bit of SOF has bit stuffing.
     volatile byte stuffedBitExpected;
 
     // --- Other shared variables ---
-    float temperatureCelsius;
-    int systemStatus;
+    // float temperatureCelsius;
+    // int systemStatus;
+
+    /// @note Maybe change the bool(s) to use individual bits of a byte.
 };
 
 #endif
