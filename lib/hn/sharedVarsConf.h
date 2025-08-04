@@ -20,7 +20,7 @@
 #ifndef _SharedVarsConf_h
 #define _SharedVarsConf_h
 
-#include <circular_buf.h>
+#include "circular_buf.h"
 #ifndef noMcu_buildflag
 #include <Arduino.h>
 
@@ -33,6 +33,8 @@ typedef uint8_t boolean;
 #define highByte(w) ((uint8_t)((w) >> 8))
 #endif
 // #include "../../libraries/circular_buf/src/circular_buf.h"
+
+extern circular_bufC bufISR1;
 
 // --- Configuration ---
 #define INPUT_SIGNAL_PIN 2 // Connect your incoming digital signal to Digital Pin 2 (PD2)
@@ -95,7 +97,7 @@ const byte maxMessageIdBits = (8 * MaxMessageSize); // Maximum message ID bits, 
 
 #define Error_NoError 0        //  0,  Successfully sent and received Ack.
 #define Error_LineError 1      //  1,  line error.
-#define Error_NoRoomInBuffer 3 //  3,  Not enough or no room to store the info needed in the buffer.
+#define Error_NoRoomInBuffer 3 //  3,  Not enough or no room to store the info needed in the buffer. Message received will be overwritten with next message.
 #define Error_AckError 16      //  16, A unit signaled an Ack error, it failed to receive the message. For example CRC failed.
 #define Error_LostPriority 17  //  17, Higher priority message being sent, received in buffer.
 #define Error_CRCError 33      // CRC received not the same as the 1 from calculating it from the received message+data.
@@ -140,9 +142,9 @@ enum class FrameState : uint8_t
     RECEIVING_CRC_Delimiter,  //
     RECEIVING_ACK_CRC_PASSED, // Where you write your ACK
     RECEIVING_ACK_CRC_FAILED, // The line is pulled low by the unit that will handle the message.
-    RECEIVING_ACK_DELIMITER,
+   // RECEIVING_ACK_DELIMITER,
     RECEIVING_ACK_HANDLED,           // The line is pulled low by the unit that will handle the message.
-    RECEIVING_ACK_HANDLED_DELIMITER, // The line is pulled low by the unit that will handle the message.
+    //RECEIVING_ACK_HANDLED_DELIMITER, // The line is pulled low by the unit that will handle the message.
     RECEIVING_EOF,
     RECEIVING_INTERFRAME_SPACE, // The line is left high for 3 bits before the next message.
     MESSAGE_COMPLETE,

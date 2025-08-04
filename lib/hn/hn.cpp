@@ -17,8 +17,8 @@
  */
 
 #include "hn.h"
-#include <avr/pgmspace.h>
 #include "sharedVarsConf.h"
+#include <avr/pgmspace.h>
 /*
  * slow Home Network.
  * 1: The line is pullup so to send data first pull it low.
@@ -84,20 +84,12 @@ void SlowHomeNet::exc()
 }
 
 /**
- * @brief Called by sendBitH() below.
- *
- * @note Separating this should make it easier to have different line hardware implementations, maybe use #defines for different versions of the
- *
- */
-inline void SlowHomeNet::setLineBitH(byte pin) { pinMode(pin, INPUT_PULLUP); }
-
-/**
  * @brief Called by sendBits() below to put a High bit on the line, by
  * separating this should make it easier for different hardware
  *
  * @return boolean True for successful send, false if a higher priority message
  * pulled the line low.
- * 
+ *
  * @todo: use a lower level read line function the can be changed to match hardware
  */
 boolean SlowHomeNet::sendBitH()
@@ -114,18 +106,6 @@ boolean SlowHomeNet::sendBitH()
         delayMicroseconds((bitPulseLength >> 2) - DigitalReadTime);
     }
     return true;
-}
-
-/**
- * @brief Called by sendBitL() below and ISR receiving func to pull the bit on the line LOW.
- *
- * @note Separating this should make it easier to have different line hardware implementations, maybe use #defines for different versions of the
- *
- */
-inline void SlowHomeNet::setLineBitL(byte pin)
-{
-    pinMode(pin, OUTPUT);
-    digitalWrite(pin, dominantLineLevel); // Set the line to LOW to indicate sending a bit
 }
 
 /**
@@ -1011,51 +991,6 @@ boolean SlowHomeNet::getNetwork()
     return false;
 }
 
-/**
- * @brief Calculates the data length in bytes based on a 3-bit length code. this don't count the message id length.
- *
- * @details
- * This function extracts the lower 3 bits of the input value 'l' to obtain a length code,
- * which is then mapped to a data length as follows:
- *   - For codes 0, 1, or 2: returns the code itself (i.e., 0, 1, or 2).
- *   - For codes 3 to 7: returns 2^(code - 1). 4,8,16,32,64 bytes or 32,64,128,256,512 bits
- *
- * This mapping is typically used to interpret encoded data length fields in network protocols,
- * where the length is either a small fixed value or an exponential value for larger payloads.
- * @note The data length should probably not exceed 4 bytes(code 3) (32 bits) in most cases, as any more will hog the line for too long.
- * at a data rate of 488 bits per second, this means a duration of about 32/488 ≈ 0.065 seconds just for the data, the whole message could take
- * ≈ 0.15 seconds depending on bits stuffed in the message.
- *
- * @param l The encoded length value (only the lower 3 bits are considered).
- * @return The decoded data length in bytes, multiply by 8 for bits.
- */
-byte SlowHomeNet::getDataLen(byte l)
-{
-    l = l & 0b111; // 1. Masking 'l' ensures its value is now between 0 and 7 (0b000 to 0b111).
-                   //    This effectively isolates the length code from other bits like RTR.
-
-    if (l <= 2) { // 2. Handle cases where the length code is 0, 1, or 2.
-        return l; // For l=0, returns 0. For l=1, returns 1. For l=2, returns 2.
-    }
-
-    // 3. If execution reaches here, 'l' MUST be in the range 3 to 7 (inclusive),
-    //    because l=0, 1, 2 were handled by the previous 'if'.
-    //    And 'l' cannot be greater than 7 due to the initial mask.
-
-    return 1 << (l - 1); // 4. For l in [3, 7], calculate 2^(l-1).
-}
-
-/// @brief Convert data length code to message id length in bytes, this don't
-/// count the data bytes.
-/// @param l Length code, only the 3 lower bit are used. values of [0-7 inclusive]
-/// @return Length in bytes. For data length up to 4 bytes message length is 1 else returns 2.
-byte SlowHomeNet::getMessageLen(byte l)
-{
-    // l >>= 3;
-    l = l bitand 0b100; // the length code can also have the RTR in the high bit.
-    if (l > 0b11) return 2;
-    return 1;
-}
 
 /// @brief Convert data length code to message id + data, length in bytes.
 /// @param l Length code, only the 3 lower bit are used.
@@ -1553,7 +1488,7 @@ void SlowHomeNet::IntCallback()
     //======== When we have 8 bits store to the buffer.
 
     if (bitsCount + bitsSentNew >= 8) {
-        bitsStore << (8 - bitsCount);
+        bitsStore <<= (8 - bitsCount);
         if (state > 0) bitsStore |= ((1 << (8 - bitsCount)) - 1);
         bitsSentNew = bitsSentNew - (8 - bitsCount);
         if (buf.space() > 0) buf.push(bitsStore);
@@ -1623,7 +1558,7 @@ void SlowHomeNet::IntCallback()
 // Tiny 2x16 entry CRC table created by Arjen Lentz
 // See
 // http://lentz.com.au/blog/calculating-crc-with-a-tiny-32-entry-lookup-table
-static const uint8_t PROGMEM dscrc2x16_table[] = { 0x00, 0x5E, 0xBC, 0xE2, 0x61, 0x3F, 0xDD, 0x83, 0xC2, 0x9C, 0x7E, 0x20, 0xA3, 0xFD, 0x1F, 0x41,
+const uint8_t PROGMEM dscrc2x16_table[] = { 0x00, 0x5E, 0xBC, 0xE2, 0x61, 0x3F, 0xDD, 0x83, 0xC2, 0x9C, 0x7E, 0x20, 0xA3, 0xFD, 0x1F, 0x41,
                                                    0x00, 0x9D, 0x23, 0xBE, 0x46, 0xDB, 0x65, 0xF8, 0x8C, 0x11, 0xAF, 0x32, 0xCA, 0x57, 0xE9, 0x74 };
 
 // Compute a Dallas Semiconductor 8 bit CRC. These show up in the ROM
@@ -1659,34 +1594,6 @@ byte SlowHomeNet::Crc4(uint8_t* addr, uint8_t len)
     byte crc;
     crc = OneWireCrc8(addr, len);
     return (((crc >> 4) xor crc) bitand 0b1111);
-}
-
-/**
- * @brief Calculates an 8-bit CRC value using a lookup table.
- *
- * This function computes the running CRC (Cyclic Redundancy Check) value based on the current and previous CRC values.
- * It uses a lookup table (dscrc2x16_table) stored in program memory to perform the calculation efficiently.
- *
- * @param crc The current CRC value.
- * @param prev_crc The previous CRC value.
- * @return The updated 8-bit CRC value.
- *
- * @note On an Arduino Uno (ATmega328P, 16 MHz), this function will typically take:
- * @note 1. - 1 cycle for the initial XOR operation (crc ^ prev_crc)
- * @note 2. - 2 × (4 cycles for pgm_read_byte) = 8 cycles (reading from PROGMEM)
- * @note 3. - 1 cycle for each additional XOR
- * @note 4. - Plus function call overhead (~4 cycles) and register moves
- * @note - Total: ~15–20 clock cycles (approximate, not including possible compiler optimizations)
- * @note - Actual timing may vary slightly depending on compiler and optimization level.
- *
- */
-byte SlowHomeNet::CRC8bits(uint8_t crc, uint8_t prev_crc)
-{
-    // calculate the running CRC and return it.
-    // crc is the current CRC, prev_crc is the previous CRC.
-    crc = crc ^ prev_crc;
-    crc = pgm_read_byte(dscrc2x16_table + (crc & 0x0f)) xor pgm_read_byte(dscrc2x16_table + 16 + ((crc >> 4) & 0x0f));
-    return crc;
 }
 
 /// @brief works out the CRC from the frame stored in the buffer, handles

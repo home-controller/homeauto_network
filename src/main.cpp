@@ -63,7 +63,10 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 
 byte pinIO_switchState[pinIO_no_of_switches];
 byte pinIO_pinsA_in[pinIO_no_of_switches] = {pinIO_inPins};
 
+circular_bufC bufISR1;
 SlowHomeNet hNet(homeNetPin);
+
+
 unsigned long loopTimer;
 word loopCount;
 

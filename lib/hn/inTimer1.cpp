@@ -177,7 +177,7 @@ static void resetMessageState()
  * @note 5. The calling ISR handles the Unknown line state and transitions to IDLE or ERROR states at the minute. Maybe should be moved to here though?
  * @todo Implement bit-stuffing handling.
  */
-void processDecodedDuration(unsigned int num_samples, bool lineLevel, bool interrupts)
+void processDecodedDuration(unsigned int num_samples, byte lineLevel, bool interrupts)
 {
     byte x;
     if (interrupts) interrupts(); // Enable interrupts so other ISR can run if needed, e.g. for Serial output or other ISRs.
@@ -223,8 +223,8 @@ void processDecodedDuration(unsigned int num_samples, bool lineLevel, bool inter
 
     // SOF (Start of Frame) detection SOFBits
     switch (g_network1_data.currentFrameState) {
-           case FrameState::Line_State_UNKNOWN: // handled in calling function ISR
-           break;
+        case FrameState::Line_State_UNKNOWN: // handled in calling function ISR
+            break;
         case FrameState::Line_IDLE:
             // To be in the IDLE state, we should have a stable lineLevel of HIGH for at least MaxInUseHighBits * 8 samples(9 bits)
             /// And as this is only called when the lineLevel is LOW, we can move to receiving SOF directly
@@ -341,13 +341,13 @@ void processDecodedDuration(unsigned int num_samples, bool lineLevel, bool inter
                     x = num_bits; // If we don't have enough bits, read only what we can
                 }
                 for (int i = 0; i < x; i++) {
-                    g_network1_data.dataPayload[g_network1_data.currentBitIndex>>3] <<= 1; // Shift left to make space for the new bit
+                    g_network1_data.dataPayload[g_network1_data.currentBitIndex >> 3] <<= 1; // Shift left to make space for the new bit
                     if (lineLevel) {
-                        g_network1_data.dataPayload[g_network1_data.currentBitIndex>>3] |= 1; // Set the last bit to 1 if lineLevel is HIGH
+                        g_network1_data.dataPayload[g_network1_data.currentBitIndex >> 3] |= 1; // Set the last bit to 1 if lineLevel is HIGH
                     }
                     g_network1_data.bitsRead++;        // Update bits read
                     g_network1_data.currentBitIndex++; // Update current bit index
-                    if (((g_network1_data.currentBitIndex>>3) +1) >= g_network1_data.dataLength) {
+                    if (((g_network1_data.currentBitIndex >> 3) + 1) >= g_network1_data.dataLength) {
                         break; // Stop if we have read all bytes of data
                     }
                 }
@@ -482,7 +482,7 @@ void processDecodedDuration(unsigned int num_samples, bool lineLevel, bool inter
             if (num_bits == 0) {                        // The is on case fallthrough before reading the ACK bits
                 x = g_network1_data.messageID;
                 g_network1_data.currentBitIndex = 0;
-                if (g_network1_data.canHandleMessageMsk > 0) { x &= g_network1_data.canHandleMessageMsk; }
+                if (g_network1_data.canHandleMessageMsk > 0) { x and_eq g_network1_data.canHandleMessageMsk; }
                 if (x == g_network1_data.canHandleMessageId) {
                     g_network1_data.canHandleMessage = true;    //
                     SlowHomeNet::setLineBitL(INPUT_SIGNAL_PIN); // Set the line to LOW to indicate Acknowledged receiving the message and will handle it.
@@ -514,11 +514,23 @@ void processDecodedDuration(unsigned int num_samples, bool lineLevel, bool inter
             if (num_bits == 0) { // We should be able to spend 7 bits worth of time to do some work here.
                 //------------------------------------------------------------------
                 /// @todo Copy received message to buffer?
+                if (bufISR1.space() >= ((g_network1_data.dataLength + (g_network1_data.messageIdBits / 8)) + 1)) {
+                    bufISR1.push(g_network1_data.dataLength + g_network1_data.messageIdBits / 8);
 
-
+                    if (g_network1_data.messageIdBits == 8) bufISR1.push(g_network1_data.messageID);
+                    else if (g_network1_data.messageIdBits == 16) {
+                        bufISR1.push(highByte(g_network1_data.messageID));
+                        bufISR1.push(lowByte(g_network1_data.messageID));
+                    }
+                    for (x = 0; x < g_network1_data.dataLength; x++) {
+                        bufISR1.push(g_network1_data.dataPayload[x]);
+                    }
+                }
                 //----------------------------------------------------------------
                 g_network1_data.maxBitRead = 7; // Set = 7 to read the 7 bytes of data.
                 return;
+            }else {
+                g_network1_data.frameError= Error_NoRoomInBuffer;
             }
             g_network1_data.maxBitRead = 3;
             // Received EOF bit
@@ -526,20 +538,41 @@ void processDecodedDuration(unsigned int num_samples, bool lineLevel, bool inter
             return; // Exit as we have received the bits for the EOF
 
         case FrameState::RECEIVING_INTERFRAME_SPACE:
+            g_network1_data.currentFrameState = FrameState::MESSAGE_COMPLETE; // Line_IDLE state will clear a lot of the message data.
+            g_network1_data.maxBitRead = 0;
+            // return;
+
+        case FrameState::MESSAGE_COMPLETE:
             g_network1_data.currentFrameState = FrameState::Line_IDLE; // Line_IDLE state will clear a lot of the message data.
             /// @warning MessageID etc. will be lost if not save before here.
-            g_network1_data.maxBitRead = 0;
+            break;
 
-            return;
-            // --- Simple Circular Buffer for Decoded Bits ---
-            void enqueueDecodedBit(char bitValue)
-            {
-                int nextHead = (decodedBitHead + 1) % DECODED_BUFFER_SIZE;
-                if (nextHead != decodedBitTail) { // Check if buffer is not full
-                    decodedBitsBuffer[decodedBitHead] = bitValue;
-                    decodedBitHead = nextHead;
-                } else {
-                    // Serial.println("Buffer overflow!"); // Debugging for buffer full
-                }
-            }
+        case FrameState::Line_DISABLED:
+            if (lineLevel == HIGH) g_network1_data.currentFrameState = FrameState::Line_IDLE;
+            break;
+
+        case FrameState::Line_Error:
+            /// Not sure if we should stay in this state until sorted out in the main loop.
+            break;
+
+        case FrameState::ERROR_FRAME_DETECTED:
+            /// @todo handle error frames etc.
+            /// Not sure if we should stay in this state until sorted out in the main loop.
+            break;
+
+        case FrameState::ERROR_Logic_code_Bug: /// @todo handle error frames etc.
+                                               /// Not sure if we should stay in this state until sorted out in the main loop.
+            break;
     }
+}
+// --- Simple Circular Buffer for Decoded Bits ---
+void enqueueDecodedBit(char bitValue)
+{
+    int nextHead = (decodedBitHead + 1) % DECODED_BUFFER_SIZE;
+    if (nextHead != decodedBitTail) { // Check if buffer is not full
+        decodedBitsBuffer[decodedBitHead] = bitValue;
+        decodedBitHead = nextHead;
+    } else {
+        // Serial.println("Buffer overflow!"); // Debugging for buffer full
+    }
+}

@@ -36,6 +36,7 @@
 		"makefile.configureOnOpen": false,
 		"files.associations": {
 			"random": "cpp"
-		}
+		},
+		"CodeGPT.apiKey": "CodeGPT Plus Beta"
 	}
 }
