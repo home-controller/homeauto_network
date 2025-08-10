@@ -6,6 +6,8 @@
 - [ ] get pin change ISR working
 - [ ] Check sending function to see if brocken
 - [ ] Check blocking receive to see if still working, Blocking receive is probably all a switch unit needs, but I guess for the same reason the ISR wold work fine to
+- [ ] Should hn.h only have the functions needed for sending messages and direct receiving without any interrupts?
+- [ ] I also thnk the header file names are a bit confusing.
 - Would using a timer to check the line level work better than pin change interrupt?
 - For now I think I may just ignore everything after the CRC until we get the next message.
 - Although it may be better to have 2 versions with a cut down version for if we can't spend time in ISR? should probably find out if we can get it to work with 1-wire & Ethernet modules etc. and how fussy they are about having delays.

@@ -565,14 +565,3 @@ void processDecodedDuration(unsigned int num_samples, byte lineLevel, bool inter
             break;
     }
 }
-// --- Simple Circular Buffer for Decoded Bits ---
-void enqueueDecodedBit(char bitValue)
-{
-    int nextHead = (decodedBitHead + 1) % DECODED_BUFFER_SIZE;
-    if (nextHead != decodedBitTail) { // Check if buffer is not full
-        decodedBitsBuffer[decodedBitHead] = bitValue;
-        decodedBitHead = nextHead;
-    } else {
-        // Serial.println("Buffer overflow!"); // Debugging for buffer full
-    }
-}

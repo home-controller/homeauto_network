@@ -39,6 +39,15 @@ extern circular_bufC bufISR1;
 // --- Configuration ---
 #define INPUT_SIGNAL_PIN 2 // Connect your incoming digital signal to Digital Pin 2 (PD2)
 
+// For my pump controller board the network is on pins 6 for output and 7 for input
+/*
+#define homeNetPin 6 /// @brief pin for network, a transistor to switch the network to Ground(LOW)
+/// @brief pin for network, Connected to the line through a high value resistor mainly to prevent back feeding
+/// the MCU when it is off and the line is on.
+#define homeNetPinInput 7
+ */
+
+
 ///  @brief Allow the line to be pulled low by a unit that is busy, i.e. not ready to receive a message. This is useful if you have only one controller and
 ///  want to wait for it to be ready before sending a message.
 #define AllowPullLineLowForBusy false
@@ -87,6 +96,11 @@ const byte maxMessageIdBits = (8 * MaxMessageSize); // Maximum message ID bits, 
 #define LineCheckTimeout 500 // 1/2 second. This is just waiting for a message to end so if 1/2 a seconds passes there is must be a problem somewhere.
 /// When using a function to check the line each time through the main loop you will likely need this delay. I needed about 100ms for the test in main.c
 #define WaitForLineTimeout (SOFBits + MaxMessageSize + MaxDataSize) // This needs to wait for the message to be sent not just the line level to change.
+
+#define DigitalWriteTime 4   // forums says 4.5µs but I think than includes the for loop
+#define DigitalReadTime 5    // forums says 4.78µs but I think than includes the for loop
+#define ReadBitsLoopMicros 3 // this is for each time though the loop that checks 8 time per bit so a value of 3 would be 24µs per bit
+
 
 #define LineUnmonitored 0  // there is no ISR etc. keeping track of the line state
 #define LineFree 1         // The ISR or function keeping track of incoming messages has marked the line as free.
