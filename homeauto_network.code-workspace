@@ -25,6 +25,7 @@
 			"PCICR",
 			"PINB",
 			"PORTD",
+			"ststm",
 			"SWITCHCAPVCC",
 			"TCCR",
 			"TIMSK",
@@ -35,8 +36,23 @@
 		],
 		"makefile.configureOnOpen": false,
 		"files.associations": {
-			"random": "cpp"
+			"random": "cpp",
+			"eeprom.h": "c",
+			"hardwareserial.h": "c"
 		},
 		"CodeGPT.apiKey": "CodeGPT Plus Beta"
+	},
+	"extensions": {
+		"recommendations": [
+			"alefragnani.bookmarks",
+			"xaver.clang-format",
+			"streetsidesoftware.code-spell-checker",
+			"alefragnani.delphi-keybindings",
+			"cschlosser.doxdocgen",
+			"yzhang.markdown-all-in-one",
+			"platformio.platformio-ide",
+			"gruntfuggly.todo-tree",
+			"alesiong.clang-tidy-linter"
+		]
 	}
 }

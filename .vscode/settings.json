@@ -12,10 +12,12 @@
         "PORTD",
         "ricaun",
         "STRINGIZE",
+        "ststm",
         "SWITCHCAPVCC",
         "vect",
         "WDTO",
         "xxyyyyy"
     ],
-    "C_Cpp.intelliSenseEngine": "default"
+    "C_Cpp.intelliSenseEngine": "default",
+    "platformio-ide.defaultEnv": "stm8"
 }

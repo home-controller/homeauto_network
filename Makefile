@@ -17,7 +17,8 @@ AED_DIR = $(HOME)/doc/src/Arduino
 LIB_DIR = $(AED_DIR)/libraries/**/src
 
 #VSCode extensions dir.
-VSE_DIR = $(AED_DIR)/vscode/insiders/extensions
+VSE_DIR = $(HOME)/var/addons/vscode/Arduino/insiders/extensions
+#VSE_DIR = $(AED_DIR)/vscode/insiders/extensions
 
 # Search path for header files
 #CFLAGS += -I$(SRC_DIR)/average

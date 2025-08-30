@@ -38,18 +38,22 @@ void setup()
 }
 
 // --- Main Loop ---
+/**
+ * @brief 
+ * 
+ */
 void loop()
 {
     if (bufISR1.len() > 0) {
         Serial.print("Started reading message: ");
         while (bufISR1.len() < bufISR1.peek() + 1) { // wait for message to be ready
-            /// @todo SHould only wait long enough for the message to be sent and print an error if it takes too long
+            /// @todo Should only wait long enough for the message to be sent and print an error if it takes too long
             Serial.print(".");
         }
         Serial.println();
         Serial.print("Finished reading message: ");
         for (int i = 0; i < bufISR1.len(); i++) {
-            Serial.print(bufISR1.pop());
+            Serial.print(bufISR1.pull());
             Serial.print(" ");
         }
         Serial.println();
