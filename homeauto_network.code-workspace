@@ -38,7 +38,9 @@
 		"files.associations": {
 			"random": "cpp",
 			"eeprom.h": "c",
-			"hardwareserial.h": "c"
+			"hardwareserial.h": "c",
+			"arduino.h": "c",
+			"stm8s.h": "c"
 		},
 		"CodeGPT.apiKey": "CodeGPT Plus Beta"
 	},
