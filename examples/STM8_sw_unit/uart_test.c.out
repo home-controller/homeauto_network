@@ -1,0 +1,26 @@
+#include "stm8_intrinsics.h"
+#include "stm8_regs.h"
+#include "uart.h"
+
+#ifndef F_CPU
+#define F_CPU 16000000UL // internal HSI default
+#endif
+
+// static void delay_ms(uint16_t ms) {
+//   for (uint16_t i = 0; i < ms; i++) {
+//     for (uint16_t j = 0; j < 4000; j++) {
+//       nop(); // crude ~1 ms delay at 16 MHz
+//     }
+//   }
+// }
+
+int main(void) {
+  CLK_CKDIVR = 0x00;
+  uart_init(16000000UL, 9600); // init UART1 at 9600 baud, 16 MHz HSI
+
+  while (1) {
+   // uart_putc('y');
+    uart_puts("Hello bare-metal!\r\n");
+    delay_ms(1000);
+  }
+}

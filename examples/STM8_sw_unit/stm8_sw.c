@@ -67,7 +67,7 @@ Analog pins (Arduino A0–A4):
 
 1-wire
    PA3/D2 temp through solder jumper
-   Other wire header/plug conector gos to JP
+   Other wire header/plug connector gos to JP
 
 
 
@@ -76,154 +76,153 @@ Analog pins (Arduino A0–A4):
 // #undef F_CPU
 // #define F_CPU 12000000UL
 
-#include <Arduino.h>        // gives you millis(), delay(), etc.
-#include <EEPROM.h>         // sduino EEPROM functions
-#include <HardwareSerial.h> // gives you Serial_xxx macros
+// #include <Arduino.h>        // gives you millis(), delay(), etc.
+// #include <EEPROM.h>         // sduino EEPROM functions
+// #include <HardwareSerial.h> // gives you Serial_xxx macros
+// #include "common_defs.h"
+// #include "eeprom.h"
+#include "system.h"
+// #include "pins_arduino_stm8s003f3.h" // pin definitions and pinMode(), digitalWrite(), digitalRead()
+#include "print.h"
+// #include "serial_print.h"
+// #include "timer_arduino_stm8.h" // delay(), delayMicroseconds()
+#include "stm8_intrinsics.h"
+#include "stm8_regs.h"
+#include "uart.h"
 
 #define t A1
 
-#define EEPROM_ADDR_ID 0x00       // address in EEPROM to store board ID
 #define LOG_INTERVAL_MS 3600000UL // 1 hour in milliseconds
 #define MINUTE_INTERVAL_MS 1000UL * 60UL
 
+// // Map enum → readable name
+// static const char* clkname(CLK_Source_TypeDef s) {
+//   switch (s) {
+//     case CLK_SOURCE_HSI:
+//       return "HSI";
+//     case CLK_SOURCE_LSI:
+//       return "LSI";
+//     case CLK_SOURCE_HSE:
+//       return "HSE";
+//     default:
+//       return "?";
+//   }
+// }
 
+// // Print current SYSCLK source
+// void print_clock_source(void) {
+//   CLK_Source_TypeDef src = CLK_GetSYSCLKSource();
+//   Serial_print_s(clkname(src));
+//   Serial_println_s(" (SYSCLK source)");
+// }
 
-// Magic value to detect uninitialized EEPROM
-#if defined(STM8)
-#define EEPROM_UNINITIALIZED 0x00
-#else
-#define EEPROM_UNINITIALIZED 0xFF
-#endif
+// // Switch system clock to external 12 MHz crystal
+// void clock_init(void) {
+//   // Enable external high-speed oscillator (HSE)
+//   CLK_HSECmd(ENABLE);
+//   while (CLK_GetFlagStatus(CLK_FLAG_HSERDY) == RESET) {
+//     // wait until HSE is stable
+//   }
 
-// Map enum → readable name
-static const char* clkname(CLK_Source_TypeDef s) {
-  switch (s) {
-    case CLK_SOURCE_HSI:
-      return "HSI";
-    case CLK_SOURCE_LSI:
-      return "LSI";
-    case CLK_SOURCE_HSE:
-      return "HSE";
-    default:
-      return "?";
-  }
-}
+//   // No prescaler → run core at 12 MHz
+//   // CLK_HSIPrescalerConfig(CLK_PRESCALER_HSIDIV1);
+//   // CLK_SYSCLKConfig(CLK_PRESCALER_CPUDIV1);
 
-// Print current SYSCLK source
-void print_clock_source(void) {
-  CLK_Source_TypeDef src = CLK_GetSYSCLKSource();
-  Serial_print_s(clkname(src));
-  Serial_println_s(" (SYSCLK source)");
-}
-
-// Switch system clock to external 12 MHz crystal
-void clock_init(void) {
-  // Enable external high-speed oscillator (HSE)
-  CLK_HSECmd(ENABLE);
-  while (CLK_GetFlagStatus(CLK_FLAG_HSERDY) == RESET) {
-    // wait until HSE is stable
-  }
-
-  // No prescalers → run core at 12 MHz
-  // CLK_HSIPrescalerConfig(CLK_PRESCALER_HSIDIV1);
-  // CLK_SYSCLKConfig(CLK_PRESCALER_CPUDIV1);
-
-  // Switch SYSCLK to HSE
-  CLK_ClockSwitchConfig(CLK_SWITCHMODE_AUTO, CLK_SOURCE_HSE, DISABLE, CLK_CURRENTCLOCKSTATE_ENABLE);
-}
-
-// helper to print uint32_t using the existing Serial_print_s / println
-void Serial_print_uint32(uint32_t v) {
-  char buf[12]; // up to 10 digits + sign + '\0'
-  int i = 0;
-  if (v == 0) {
-    Serial_print_s("0");
-    return;
-  }
-  while (v > 0 && i < (int)sizeof(buf) - 1) {
-    buf[i++] = '0' + (v % 10);
-    v /= 10;
-  }
-  // reverse
-  for (int j = i - 1; j >= 0; --j) {
-    char s[2] = { buf[j], 0 };
-    Serial_print_s(s);
-  }
-}
-
-void Serial_println_uint32(uint32_t v) {
-  Serial_print_uint32(v);
-  Serial_println_s("");
-}
+//   // Switch SYSCLK to HSE
+//   CLK_ClockSwitchConfig(CLK_SWITCHMODE_AUTO, CLK_SOURCE_HSE, DISABLE, CLK_CURRENTCLOCKSTATE_ENABLE);
+// }
 
 void setup(void) {
-  uint8_t id;
-  clock_init(); // if you still use it
-  Serial_begin(9600);
-  delay(100);
+  // uint8_t id;
+  //  clock_init_external();
+  system_clock_init_16MHz();
+  // Serial_begin(9600);
+  // uart_init(12000000UL, 9600); // init UART1 at 9600 baud, 12 MHz HSE
+  uart_init(16000000UL, 9600); // init UART1 at 9600 baud, 16 MHz HSI
+  delay_ms(1000);
+  uart_puts("Hello 16MHz internal clock!\r\n");
+  delay_ms(100);
+  system_clock_init_1MHz();
+  uart_puts("Hello 1MHz internal clock!\r\n");
 
-  Serial_print_s("CLK source: ");
-  Serial_print_s(clkname(CLK_GetSYSCLKSource()));
-  Serial_println_s(" (SYSCLK source)");
-
-  Serial_print_s("F_CPU (compile) = ");
-  Serial_print_uint32(F_CPU);
-  Serial_println_s("");
-
-  Serial_print_s("CLK_GetClockFreq() = ");
-  Serial_println_uint32(CLK_GetClockFreq());
-
-  Serial_print_s("CLK->CKDIVR = 0x");
-  Serial_println_i((int)CLK->CKDIVR);
-  // print millis baseline
-  Serial_print_s("millis() at start = ");
-  Serial_println_uint32(millis());
-  
-  print_clock_source();
-  Serial_println_s("");
-  Serial_println_s("STM8 Serial started");
-
-  Serial_print_s("F_CPU = ");
-  Serial_print_i((int)(F_CPU / 1000000UL)); // in MHz Serial_println_ul(F_CPU);
-  Serial_println_s("MHz");
-
-  // Read ID from EEPROM
-  id = EEPROM_read(EEPROM_ADDR_ID);
-
-  if (id == EEPROM_UNINITIALIZED) {
-    // Not yet set → assign new ID
-    id = 42;
-    EEPROM_write(EEPROM_ADDR_ID, id);
-    Serial_print_s("Board ID not set. Assigning: ");
-    Serial_println_i((int)id);
-  } else {
-    Serial_print_s("Board ID from EEPROM: ");
-    Serial_println_i((int)id);
+  clock_init_external_12MHz();
+  delay_ms(1000);
+  uart_init(12000000UL, 9600); // init UART1 at 9600 baud, 12 MHz HSE
+  delay_ms(1000);
+  uart_puts("Hello 12MHz external clock!\r\n");
+  //clock_init();
+  uart_puts("Hello bare-metal sw!\r\n");
+  uart_init(16000000UL, 9600);
+  while (1) {
+    uart_putc('t');
+    print_clock_source();
+    delay_ms(1000);
   }
+
+  // printS("F_CPU (compile) = ");
+  // printI(F_CPU);
   print_clock_source();
-  Serial_print_s("readBit() = ");
-  Serial_println_i((int)readBit());
+  // timer2_init();
+  // // printS(" (compile)");
+  // // printS("CLK_GetClockFreq() = ");
+  // // printI32(CLK_GetClockFreq());
+
+  // // printS("CLK->CKDIVR = 0x");
+  // // printI((int)CLK->CKDIVR);
+  // // print millis baseline
+  // printS("millis() at start = ");
+  // printI32(millis());
+
+  // print_clock_source();
+  // printlnS("STM8 Serial started");
+
+  // printS("F_CPU = ");
+  // printI((int)(F_CPU / 1000000UL)); // in MHz Serial_println_ul(F_CPU);
+  // printlnS("MHz");
+
+  // // Read ID from EEPROM
+  // id = EEPROM_read(EEPROM_ADDR_ID);
+
+  // if (id == EEPROM_UNINITIALIZED) {
+  //   // Not yet set → assign new ID
+  //   id = 42;
+  //   EEPROM_write(EEPROM_ADDR_ID, id);
+  //   printS("Board ID not set. Assigning: ");
+  //   printI((int)id);
+  // } else {
+  //   printS("Board ID from EEPROM: ");
+  //   printI((int)id);
+  // }
+  // print_clock_source();
+  // printS("readBit() = ");
+  // printI((int)readBit());
 }
 
 void loop(void) {
-  static int l = 0;
-  static uint32_t lastMillis = 0;
-  static uint32_t lastMillisC = 0;
-  static uint16_t c = 0;
-  uint32_t now = millis();
+  // static int l = 0;
+  // static uint32_t lastMillis = 0;
+  // static uint32_t lastMillisC = 0;
+  // static uint16_t c = 0;
+  // uint32_t now = millis();
 
-  if (now - lastMillis >= LOG_INTERVAL_MS) {
-    lastMillis += LOG_INTERVAL_MS;
-    Serial_print_s("Elapsed hours: ");
-    Serial_println_i((int)(lastMillis / 3600000UL));
-  }
-  if (now - lastMillisC >= MINUTE_INTERVAL_MS * 10) {
-    lastMillisC += MINUTE_INTERVAL_MS;
-    Serial_print_s("Looping: ");
-    Serial_println_i(l);
-    l++;
-    // c = 0;
-  }
+  // if (now - lastMillis >= LOG_INTERVAL_MS) {
+  //   lastMillis += LOG_INTERVAL_MS;
+  //   printS("Elapsed hours: ");
+  //   printI((int)(lastMillis / 3600000UL));
+  // }
+  // if (now - lastMillisC >= MINUTE_INTERVAL_MS * 10) {
+  //   lastMillisC += MINUTE_INTERVAL_MS;
+  //   printS("Looping: ");
+  //   printI(l);
+  //   l++;
+  //   // c = 0;
+  // }
   // digitalWrite(1, 1);
-  delay(100);
+  delay_ms(100);
+}
+int main(void) {
+  setup();
+  while (1) {
+    loop();
+  }
 }

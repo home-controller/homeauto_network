@@ -32,20 +32,19 @@
 
 ```fixed width text
 |SF|R|lll|mmmmmmmm|ddddddd16ddddddd|CCCCCCCC|D|A|D|A|DD|eeeeeee|iii
-|01|?| 3 | 8bits  |0,8,16 or32 bits|    8   |l|1|1|1|2 |7 high | 3 | number of bits.
+|01|?| 3 | 8,16 or32 bits          |    8   |l|1|1|1|2 |7 high | 3 | number of bits.
 |01|?|1??|????????|????????????????|????????|1|?|1|?|10|1111111|111| the bits value.
 ```
 
 * bits[1 Or more] SOF(start of frame) Bit(s) A pull down pulse to say I am about to start sending. There is a #define for number of bits, to make checking each time through main loop more reliable. If set to more than 1 bit the last bit is high after the pulled low bit(s), to help with timings as if checking in the main loop for example might not know when the pull low started. A controller could also use Pulling the line LOW and then Sending the last HIGH bit to take control of the network.
 * bits[1] RTR (Remote Transmission Request).
     - RTR = 0: for date frame. or RTR=1 for: "Remote-Request Frame".
-    - We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware IC would no longer work.
-* bits[3] Data length in bytes 0=0,1=1,2=2,3=4. Extra bit for future expansion
-* bits[8] command id.
-* bits[0,8,16,32] bits, Then optional 8,16 or 32 bits of data.
-* bits[8,16] CRC field. For now CRC in only on command and data bytes. note CAN is 15 bits. Changed to 8 bits from 4
+    - We could add a spare bit here but as this is just a software protocol it shouldn't matter much if we change it unlike CAN where a load of hardware chips would no longer work.
+* bits[3] Data length in bytes 0=1(bits 8),1=2(16),2=4(32),3=8(64). 2^[0..3] bytes. Extra bit for future expansion
+* bits[8,16,32,64] bits. 1, 2, 4 or 8 bytes of message data.
+* bits[8] CRC field. For now CRC in only on data bytes. note CAN is 15 bits. Changed to 8 bits from 4
 * bits[1]: CRC delimiter. Delimiter is high. Maybe should be inverse of preceding bit?
-* bits[1] Ack bit. Like CAN this is pulled low by any unit that fails with the CRC it indicate a line error, even if the unit interested receives it fine.
+* bits[1] Ack bit. Seems I had this backwards. Now like CAN this is pulled low by any unit that passes the CRC it indicate at least one unit received it fine. @note: In can errors are indicated by 6 dominant bits to stop the message.
 * bits[1] Ack delimiter bit (this high to?)
 * bits[1] Ack bit. This is pulled low by any unit that can handle the message i.e. if the message was light switch turned on then this unit will turn on the light.
 * bits[1] Ack delimiter bit, need this so the replying unit has some timing leeway
@@ -77,17 +76,20 @@ bus line remains in the recessive state (Bus Idle) until the next transmission s
 
 #### By default the minimum length in bits is
 
-* 2: bits for start of frame
-- 1: bit for RTR (Remote Transmission Request)
-- 3: for length: 3
-- 8: for message id: 8
-- 0: data: 0
-- 5: bits [8+1] for CRC
-- 2: bits [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error
-- 2: bits 1+1 Ack (message handled)
-- 1: bit for a pull low bit before EOF
-- 7: bits for end of frame.
-- 3: for Interframe Space.
+
+| bits | description|
+|:----:|------------|
+|2    | bits for start of frame. Pull low and then 1 high bit. The first bit(s) is to give time for MCUs to wake from sleep etc. leading bits can be increased if more time is needed. No bit stuffing on leading bits.|
+|1    | bit for RTR (Remote Transmission Request)|
+| 3   | for length: 3
+| 8+  | for message data: 8 to 128 bits (or 1 to 16 bytes) most messages will be 1 or 2 bytes
+| 9   | bits [8+1] for CRC + 1 for delimiter. No bit stuffing after CRC. Uses optimized 1-wire CRC. 1-wire uses a 2x16 array of bytes table of values 
+| 2   | bits [1+1] ack, Any unit on line will pull the Ack bit low on receiving Error|
+| 2   | bits 1+1 Ack (message handled) This can be used to resend the message later if no unit turned on the light etc. maybe it was busy.
+| 1   | bit for a pull low bit before EOF. Added this in case we want a simplified receive just using pin-change int with no Ack and not waiting for end of frame
+| 7   | bits for end of frame.
+| 3   | for Interframe Space.
+
   
 So 38 bits in total and this is not counting any bit stuffing
 
@@ -147,7 +149,6 @@ Maybe we could use 6 bits pulled low to interrupt long low priority messages! As
 
 ### CRC Error checking
 
-- Not sure how good the CRC is when cut down form 8 bits to 4, should it go back to 8?
 - Decided to change to 8 bit CRC
 - CRC is computed on command and data bytes
 
@@ -233,13 +234,16 @@ This it for using the pin change interrupt to keep track of the timings and not 
 - Storing the number of bits rather then converting to the message value works better as 0 can than be use to show the start of the next message.
 - We also need to keep the time spent in the ISR to the minimum.
 - [ ] Each time through the main loop remove any messages from the buffer.
-- [ ] Could also use a timer interrupt
+- [ ] If only using "Pin change interrupt" replying in the Ack fields will be hard. Options:
+  1. Don't bother.
+  1. while in the ISR in CRC field, stay in until after both ACKs. Could disable "Pin change interrupt" and make sure other interupt are enabled, would likely need to for things like Delay to still work.
+  1. tweak the Frame so the sender sends a low pulse long enough to trigger the "Pin change interrupt", this could be the last part(maybe 1/4?) of the previous delimiter bit and/or/both the start of the Ack bit. Or could add another low bit before the Ack. Or just change the delimiter bit to be low. Apparently in CAN if triggers an error if LOW? Not sure why.
 - Should only compleat messages be removed from the buffer, or compleat bytes or compleat messages.
 - I think I will go with for now having an array for 1 message and moving the message to the array as each field or byte is received.
 - so each time through the main loop(or timmer interrupt):
    1. Check if we are receiving a message 0b111
    1. If we are check if the time since last pin change is > max for 8 bits and if so reset vars and maybe rase an error.
-   1. Move message bits from buffer to message if there there is room and we have enough.
+   1. Move message bits from buffer to message if there is room and we have enough.
    1. Once we have a full message handle it.
 
 ## Can protocol web pages
@@ -296,7 +300,7 @@ If we add a resistor to the IO pin to limit the current in case of short to grou
 ## Current test circuit
 
 - Line pullup resistor = 1kΩ
-- IO pin to line resistor = 28Ω This to  protect the IO pin incase of line short etc.
+- IO pin to line resistor = 28Ω This to  protect the IO pin encase of line short etc.
 - [ ] TODO: There is a problem with backfeed trying to power the chip through the IO pin when a unit is turn off(unpowered), when using the ATmega328P(and most other chips). This means if one unit is off it pulls the line low all the time.
   - [ ] TODO: Add/Change the code to have the option to use 2 IO pins, 1 to read to line with a high enough resistor in line so it will not pull the line low when the unit is un-powered. And the other pin can be used when sending messages by pulling the line low through and transistor. N-Channel MOSFET or Opto etc.
   - [ ] TODO: While we are at it change the code so it can go high to pull the line low for an NPN transistor etc.

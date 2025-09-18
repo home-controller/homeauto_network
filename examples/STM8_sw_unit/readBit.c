@@ -1,4 +1,7 @@
-#include <Arduino.h> 
+//#include <Arduino.h> 
+#include "common_defs.h"
+#include "timer_arduino_stm8.h"
+#include "pins_arduino_stm8s003f3.h" // pin definitions and pinMode(), digitalWrite(), digitalRead()
 
 #define bitPulseLength 2048 // 1 bit takes 2048 microseconds (~= 1e6 / 488 = 2049.18) (microsecond = 1 millionth of a second).
 #define DigitalWriteTime 4   // forums says 4.5µs but I think than includes the for loop

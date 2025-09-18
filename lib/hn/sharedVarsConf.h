@@ -20,10 +20,12 @@
 #ifndef _SharedVarsConf_h
 #define _SharedVarsConf_h
 
+#ifdef ARDUINO
+
 #include "circular_buf.h"
 #ifndef noMcu_buildflag
 #include <Arduino.h>
-
+#define testD D1
 #else
 #include <cstdint>
 typedef uint8_t byte;
@@ -245,5 +247,5 @@ struct SharedData { // @brief Shared data structure for the HomeNet protocol. As
 
   /// @note Maybe change the bool(s) to use individual bits of a byte.
 };
-
+#endif
 #endif

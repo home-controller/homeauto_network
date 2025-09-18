@@ -20,6 +20,7 @@
 			"interframe",
 			"Lentz",
 			"libnewlib",
+			"MOSI",
 			"nanoatmega",
 			"OCIE",
 			"PCICR",
@@ -40,9 +41,24 @@
 			"eeprom.h": "c",
 			"hardwareserial.h": "c",
 			"arduino.h": "c",
-			"stm8s.h": "c"
+			"stm8s.h": "c",
+			"chrono": "c",
+			"text_encoding": "c",
+			"typeindex": "c",
+			"typeinfo": "c",
+			"pins_arduino_stm8s003f3.h": "c",
+			"print.h": "c",
+			"cstdint": "cpp",
+			"timer_arduino_stm8.h": "c",
+			"mcu_defs.h": "c",
+			"*.txt": "c"
 		},
-		"CodeGPT.apiKey": "CodeGPT Plus Beta"
+		"CodeGPT.apiKey": "CodeGPT Plus Beta",
+		"cSpell.ignorePaths": [
+			"stm8s.h",
+			"logs/**/*.log",
+			"homeauto_network.code-workspace"
+		]
 	},
 	"extensions": {
 		"recommendations": [
