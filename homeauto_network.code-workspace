@@ -1,13 +1,24 @@
 {
 	"folders": [
 		{
+			"path": "examples/stm8_sw_unit"
+		},
+		{
 			"path": "."
 		},
 		{
 			"path": "../libraries"
+		},
+		{
+			"path": "examples/nano_receive"
 		}
 	],
 	"settings": {
+    	"platformio.workspace.projects": {
+        	"examples/stm8_sw_unit": ["stm8"],
+        	"examples/nano_receive": ["receive"]
+    	},
+		"cSpell.diagnosticLevel": "Hint",
 		"cSpell.words": [
 			"AREF",
 			"Arjen",
@@ -26,6 +37,7 @@
 			"PCICR",
 			"PINB",
 			"PORTD",
+			"stlinkv",
 			"ststm",
 			"SWITCHCAPVCC",
 			"TCCR",
@@ -59,6 +71,7 @@
 			"logs/**/*.log",
 			"homeauto_network.code-workspace"
 		]
+		
 	},
 	"extensions": {
 		"recommendations": [

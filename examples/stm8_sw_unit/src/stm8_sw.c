@@ -1,3 +1,4 @@
+// file: src/stm8_sw.c 
 /*
  Code for a stm8 pcb in the light switch using the "simple home network" to:
  monitor up to a 3 gang 2 way switch
@@ -131,28 +132,62 @@ Analog pins (Arduino A0–A4):
 //   // Switch SYSCLK to HSE
 //   CLK_ClockSwitchConfig(CLK_SWITCHMODE_AUTO, CLK_SOURCE_HSE, DISABLE, CLK_CURRENTCLOCKSTATE_ENABLE);
 // }
+void print_clock_source(void) {
+  uint8_t src = CLK_CMSR;
+  switch (src) {
+    case 0xE1:
+      uart_puts("HSI (16 MHz RC)\r\n");
+      break;
+    case 0xD2:
+      uart_puts("LSI (128 kHz RC)\r\n");
+      break;
+    case 0xB4:
+      uart_puts("HSE (external crystal)\r\n");
+      break;
+    default:
+      uart_puts("Unknown\r\n");
+      break;
+  }
+}
 
 void setup(void) {
   // uint8_t id;
-  //  clock_init_external();
+
+  // 1. Start at 16 MHz
   system_clock_init_16MHz();
   // Serial_begin(9600);
   // uart_init(12000000UL, 9600); // init UART1 at 9600 baud, 12 MHz HSE
   uart_init(16000000UL, 9600); // init UART1 at 9600 baud, 16 MHz HSI
   delay_ms(1000);
   uart_puts("Hello 16MHz internal clock!\r\n");
+  print_clock_source();
   delay_ms(100);
-  system_clock_init_1MHz();
-  uart_puts("Hello 1MHz internal clock!\r\n");
+  while (!(UART1_SR & 0x40));
 
+  // 2. Switch to 1 MHz (CPU = 1MHz, Master = 16MHz)
+  system_clock_init_1MHz();
+  uart_init(16000000UL, 9600); // already initialized at 16 MHz, so no need to re-init
+  uart_puts("Hello 1MHz internal clock!\r\n");
+  print_clock_source();
+  // FIX: CPU is 16x slower, so divide the delay by 16 to get ~1 real second
+  delay_ms(1000 / 16);
+
+  uart_puts(".\r\n"); // ruffly check timings as seral output has timestamps per line.
+  delay_ms(10000 / 16);
+  uart_putc('.');
+  while (!(UART1_SR & 0x40));
+
+  // 3. Switch to 12 MHz external crystal (CPU = 12MHz, Master = 12MHz)
   clock_init_external_12MHz();
-  delay_ms(1000);
   uart_init(12000000UL, 9600); // init UART1 at 9600 baud, 12 MHz HSE
   delay_ms(1000);
   uart_puts("Hello 12MHz external clock!\r\n");
-  //clock_init();
+  print_clock_source();
+
+  system_clock_init_16MHz();
   uart_puts("Hello bare-metal sw!\r\n");
   uart_init(16000000UL, 9600);
+  uart_puts("Back to 16MHz internal clock!\r\n");
   while (1) {
     uart_putc('t');
     print_clock_source();
@@ -161,7 +196,7 @@ void setup(void) {
 
   // printS("F_CPU (compile) = ");
   // printI(F_CPU);
-  print_clock_source();
+  // print_clock_source();
   // timer2_init();
   // // printS(" (compile)");
   // // printS("CLK_GetClockFreq() = ");

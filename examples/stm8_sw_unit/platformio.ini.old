@@ -1,19 +1,27 @@
+[platformio]
+lib_dir = ../../lib ; Point to your shared root library
 
 [env:stm8]
+;src_dir = examples/STM8_sw_unit
 platform = ststm8
 board = stm8s003f3
 ;framework = arduino
-extends = env_common
-build_src_filter = 
-    +<../examples/STM8_sw_unit/*.c>
-    +<../examples/STM8_sw_unit/*.cpp>
-    -<*>
+; extends = env_common
+; build_src_filter = 
+;     +<examples/STM8_sw_unit/*.c> ;./examples/STM8_sw_unit/stm8_sw.c
+;     ;+<examples/STM8_sw_unit/*.cpp> ; stm8 is .c only
+;     -<*>
+
+lib_deps =
+    symlink://../../lib/hn
+
 build_flags =
-    ${env_common.build_flags}
+    ; ${env_common.build_flags}
     -DSTM8
     -DSTM8S003F3_sw_unit_v1
-    -Iexamples/STM8_sw_unit/include/   ; only if you have headers there
+    ; -Iexamples/stm8_sw_unit/include/   ; only if you have headers there
     -D__SDCC__  ; to enable SDCC-specific code sections in libraries 
+    -x c
 
 
 ; This is the key line. It forces the entire project,

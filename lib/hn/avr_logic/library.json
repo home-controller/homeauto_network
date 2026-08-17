@@ -1,0 +1,11 @@
+{
+  "name": "hn",
+  "version": "0.0.2",
+  "description": "Common settings and logic for the home network.",
+  "authors": [
+    {
+      "name": "Joseph",
+      "maintainer": true
+    }
+  ]
+}

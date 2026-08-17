@@ -82,9 +82,11 @@ void uart_puts(const char* s) {
 /// @brief Crude delay loop, ~ms at 16 MHz. if the clock was 1/2 of that, it would take twice as long
 /// @param ms 
 void delay_ms(uint16_t ms) {
+  ms = ms >> 2; // Crude adjustment for the time it takes to execute the loop itself. This is a rough estimate and may not be accurate for all clock speeds.
   for (uint16_t i = 0; i < ms; i++) {
     for (uint16_t j = 0; j < 4000; j++) {
       nop(); // crude ~1 ms delay at 16 MHz
+      nop();
     }
   }
 }

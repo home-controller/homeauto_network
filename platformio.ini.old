@@ -1,0 +1,20 @@
+[platformio]
+
+; Set the source directory to the project root so build_src_filter 
+; can find files in the 'examples' subfolder.
+; src_dir = .
+
+; extra_configs =
+;     examples/STM8_sw_unit/STM8S003F3.ini
+;     examples/ATMega32U4_send/ATMega32U4_send.ini
+;     examples/nano_receive/receive.ini
+; ;src_dir = examples/nano_receive
+; default_envs = stm8
+
+
+
+; Common settings (not a real env)
+[env_common]
+build_flags = 
+    -D VERSION=0.1.3
+    ; -I lib/hn

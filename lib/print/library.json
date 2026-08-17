@@ -1,0 +1,14 @@
+{
+  "name": "hn",
+  "version": "0.0.2",
+  "description": "Console printing macros in a header file",
+  "authors": [
+    {
+      "name": "Joseph",
+      "maintainer": true
+    }
+  ],
+  "build": {
+    "includeDir": "include"
+  }
+}

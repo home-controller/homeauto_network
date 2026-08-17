@@ -3,6 +3,9 @@
 #include "stm8_regs.h"
 #include "stm8_intrinsics.h"
 
+/* cspell:ignoreRegExp \b[A-Z0-9_]{3,}\b */
+
+
 // -------------------------
 // Config: Select timer
 // -------------------------

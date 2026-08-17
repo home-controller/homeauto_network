@@ -67,7 +67,17 @@ typedef struct {
 #define CLK_CMSR (*(volatile uint8_t*)0x50C3)     // Clock Master Status Register
 #define CLK_SWR (*(volatile uint8_t*)0x50C4)      // Switch Register
 #define CLK_SWCR (*(volatile uint8_t*)0x50C5)     // Switch Control Register
-#define CLK_CKDIVR (*(volatile uint8_t*)0x50C6)   // Clock Divider Register
+/**
+ * @brief Clock Divider Register. This register contains two bit fields.
+ *  The HSIDIV field is used to divide the High-Speed Internal (HSI) clock, while the 
+ *  CPUDIV field is used to divide the selected clock source (HSI or HSE) for the CPU clock. 
+ *  The combined divisor is 2^n, where n = 0..10.
+ * @note HSIDIV (bits 3:4) 0   0   0   1   1   0   0   0    =  0x18 (CLK_CKDIVR_HSIDIV)
+ * @note CPUDIV (bits 0:2) 0   0   0   0   0   1   1   1    =  0x07 (CLK_CKDIVR_CPUDIV)
+ * @attention HSIDIV applies only to HSI. If you switch to HSE, HSIDIV is ignored. The effects UART, I2C etc.
+ * @warning CPUDIV only affects the CPU clock, not the peripheral clocks. Peripheral clocks are controlled by PCKENR1 and PCKENR2.
+ */
+#define CLK_CKDIVR (*(volatile uint8_t*)0x50C6)   
 #define CLK_PCKENR1 (*(volatile uint8_t*)0x50C7)  // Peripheral Clock Gating Register 1
 #define CLK_CSSR (*(volatile uint8_t*)0x50C8)     // Clock Security System Register
 #define CLK_CCOR (*(volatile uint8_t*)0x50C9)     // Clock Calibration Output Register
@@ -94,8 +104,8 @@ typedef struct {
 #define CLK_SWCR_SWEN ((uint8_t)0x02)  /*!< Switch start/stop */
 #define CLK_SWCR_SWBSY ((uint8_t)0x01) /*!< Switch busy flag*/
 
-#define CLK_CKDIVR_HSIDIV ((uint8_t)0x18) /*!< High speed internal clock prescaler */
-#define CLK_CKDIVR_CPUDIV ((uint8_t)0x07) /*!< CPU clock prescaler */
+#define CLK_CKDIVR_HSIDIV ((uint8_t)0b00011000) /*!< High speed internal clock prescaler bit mask*/
+#define CLK_CKDIVR_CPUDIV ((uint8_t)0b00000111) /*!< CPU clock prescaler bit mask */
 
 // -----------------------------
 // CLK Peripheral Clock Enable
